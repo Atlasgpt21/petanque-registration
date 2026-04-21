@@ -149,11 +149,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([$tn, implode('-', $codes), $game['gamecode'], 'Y', $club['clubcode'], $category]);
             }
 
-            // Insert games2 εγγραφές
+            // Insert games2 εγγραφές — κάθε παίκτης παίρνει μοναδικό teamcode
+            // Για ομάδα N μεγέθους k: indices (N-1)*k+1 ... N*k
             $teamNumber = (int)preg_replace('/\D/', '', preg_replace('/^[A-Z]+/', '', $tn));
+            $teamSize = count($codes);
             $st = $pdo->prepare("INSERT INTO `{$T['games2']}` (playercode1, clubcode, gamecode, checkstatus, teamcode, `save`) VALUES (?,?,?,?,?,?)");
-            foreach ($codes as $pcode) {
-                $st->execute([$pcode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $teamNumber), 'Y']);
+            foreach ($codes as $i => $pcode) {
+                $tcIndex = ($teamNumber - 1) * $teamSize + ($i + 1);
+                $st->execute([$pcode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'Y']);
             }
 
             // Ενημέρωση aa

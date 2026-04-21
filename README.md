@@ -127,3 +127,86 @@ php -S localhost:8000 -t public/
 ```
 
 Στον browser: <http://localhost:8000/>.
+
+---
+
+## Deployment σε Hostinger (shared hosting με cPanel / hPanel)
+
+Η εφαρμογή τρέχει σε κάθε shared hosting με PHP 8.1+ και MySQL. Βήματα για Hostinger:
+
+### 1. Δημιουργία βάσης δεδομένων
+
+1. Στο hPanel → **Databases** → **MySQL Databases** → **Create New Database**.
+2. Σημείωσε **database name**, **user**, **password** — θα τα βάλεις στο `config.php`.
+3. Κάνε κλικ **phpMyAdmin** δίπλα στη DB που μόλις έφτιαξες.
+4. Στο phpMyAdmin → tab **Import** → ανέβασε διαδοχικά:
+   - `sql/schema.sql`
+   - `sql/sample_data.sql` (προαιρετικό — για δοκιμαστικά δεδομένα)
+5. Αν **υπάρχουν ήδη** οι πίνακες `games`/`games2`/`aa`/`teams`/`clubs`/`players` από το παλιό σου σύστημα, τρέξε μόνο:
+   ```sql
+   ALTER TABLE `games` ADD COLUMN IF NOT EXISTS `registration_deadline` DATETIME NULL;
+   ```
+   και ό,τι `CREATE TABLE IF NOT EXISTS` αφορά `club_users` και `admins`.
+
+### 2. Upload αρχείων
+
+**Επιλογή Α — File Manager (χωρίς FTP client):**
+
+1. hPanel → **Files** → **File Manager** → άνοιξε τον φάκελο `public_html/`.
+2. Upload ένα `.zip` με όλα τα περιεχόμενα του repo και κάνε **Extract** μέσα στο `public_html/`.
+3. **Document root = `public/`**. Επειδή στο Hostinger το document root είναι το `public_html/`, έχεις δύο επιλογές:
+   - **Συνιστώμενο**: μετακίνησε τα περιεχόμενα του `public/` **απευθείας μέσα** στο `public_html/` (δηλ. `public_html/index.php`, `public_html/assets/…`, `public_html/club/…`, `public_html/admin/…`), και τους φακέλους `src/`, `sql/`, και το `config.php` βάλε τα **έξω** από το `public_html/` (π.χ. στο `/home/<user>/petreg/`). Μετά ενημέρωσε το `src/bootstrap.php` ώστε να κάνει `require __DIR__.'/../../petreg/config.php';` (ή όπου το έβαλες).
+   - **Γρήγορο** (λιγότερο ασφαλές — ο `src/` είναι μέσα στο `public_html/` αλλά δεν σερβίρεται γιατί δεν έχει entry points): άφησε όλη τη δομή όπως είναι και φτιάξε subdomain (`petreg.yourdomain.gr`) με document root `public_html/petanque-registration/public/`.
+
+**Επιλογή Β — FTP:**
+
+1. hPanel → **Files** → **FTP Accounts** → πάρε credentials.
+2. Χρησιμοποίησε FileZilla κλπ και ανέβασε με ίδια δομή όπως παραπάνω.
+
+### 3. Config
+
+1. Αντίγραψε `config.php.example` → `config.php`.
+2. Επεξεργάσου:
+   ```php
+   'db' => [
+       'host'     => 'localhost',   // συνήθως localhost στο Hostinger
+       'dbname'   => 'uXXX_petanque',
+       'user'     => 'uXXX_petuser',
+       'password' => '…',
+       'charset'  => 'utf8mb4',
+   ],
+   ```
+3. Ρύθμισε PHP version: hPanel → **Advanced** → **PHP Configuration** → επίλεξε **PHP 8.1 ή νεότερη**.
+
+### 4. URL rewriting (προαιρετικό)
+
+Η εφαρμογή δεν απαιτεί rewriting — όλα τα URLs είναι `.php` direct. Αν θες να κρύψεις το `.php` extension, δημιούργησε `public_html/.htaccess`:
+
+```apache
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([^\.]+)$ $1.php [NC,L]
+
+# αποτροπή πρόσβασης σε src/ αν δεν το μετακίνησες έξω από public_html
+RewriteRule ^src/ - [F,L]
+RewriteRule ^sql/ - [F,L]
+RewriteRule ^config\.php$ - [F,L]
+```
+
+### 5. SSL
+
+hPanel → **Security** → **SSL** → ενεργοποίησε το δωρεάν **Let's Encrypt** για το domain σου. Η εφαρμογή χρησιμοποιεί session cookies με `Secure=true` όταν το request είναι HTTPS.
+
+### 6. Πρώτο login & αλλαγή κωδικών
+
+- Πήγαινε στο `https://<domain>/` (ή `/petanque-registration/public/` ανάλογα με το setup).
+- Login ως `admin`/`admin1234` → άλλαξε password άμεσα.
+- Δημιούργησε νέους λογαριασμούς συλλόγων ή άλλαξε τους default (`gal`, `peir`, κλπ).
+
+### Troubleshooting
+
+- **"Internal Server Error"**: συνήθως λάθος PHP version. Βεβαιώσου ότι είναι ≥ 8.1.
+- **"SQLSTATE[HY000] [1049] Unknown database"**: λάθος `dbname` στο `config.php`.
+- **Greek characters σαν `???`**: βεβαιώσου ότι η DB/tables είναι σε `utf8mb4_unicode_ci` και ότι το connection charset είναι `utf8mb4` (ήδη ρυθμισμένο στο `src/db.php`).
+- **File Manager δεν δείχνει hidden files (`.htaccess`)**: settings → "Show hidden files".
