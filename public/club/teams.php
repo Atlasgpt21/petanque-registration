@@ -127,17 +127,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Ο αθλητής ' . $conflict['playercode1'] . ' είναι ήδη δηλωμένος σε άλλη ομάδα.');
             }
 
-            // Υπολογισμός teamNumber
+            // Υπολογισμός teamname + teamNumber
             if ($tid > 0) {
                 // Διατηρούμε το ίδιο όνομα αν κατηγορία δεν άλλαξε
                 $tn = $existing['teamname'];
+                $teamNumber = parse_team_number_from_name($tn);
                 $cat = $existing['category'] ?? $category;
                 if ($cat !== $category) {
                     // Αναρίθμηση
-                    $tn = next_teamname($pdo, $T, $club, $game['gamecode'], $category);
+                    [$tn, $teamNumber] = next_teamname($pdo, $T, $club, $game['gamecode'], $category);
                 }
             } else {
-                $tn = next_teamname($pdo, $T, $club, $game['gamecode'], $category);
+                [$tn, $teamNumber] = next_teamname($pdo, $T, $club, $game['gamecode'], $category);
             }
 
             // Save team
@@ -151,7 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Insert games2 εγγραφές — κάθε παίκτης παίρνει μοναδικό teamcode
             // Για ομάδα N μεγέθους k: indices (N-1)*k+1 ... N*k
-            $teamNumber = (int)preg_replace('/\D/', '', preg_replace('/^[A-Z]+/', '', $tn));
             $teamSize = count($codes);
             $st = $pdo->prepare("INSERT INTO `{$T['games2']}` (playercode1, clubcode, gamecode, checkstatus, teamcode, `save`) VALUES (?,?,?,?,?,?)");
             foreach ($codes as $i => $pcode) {
@@ -178,16 +178,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 /**
- * Υπολογισμός επόμενου διαθέσιμου αύξοντα αριθμού ομάδας για την κατηγορία.
+ * Επιστρέφει [teamname, teamNumber] για την επόμενη διαθέσιμη ομάδα της κατηγορίας.
  */
-function next_teamname(PDO $pdo, array $T, array $club, string $gamecode, string $category): string
+function next_teamname(PDO $pdo, array $T, array $club, string $gamecode, string $category): array
 {
-    $prefix = 'ath';
-    $suffix = '';
-    if ($category === 'F') { $suffix = 'w'; }
-    elseif ($category === 'MIX') { $prefix = 'mix'; $suffix = ''; }
-
-    // Μετρώ υπάρχοντα teamcodes ίδιας κατηγορίας
+    // Μετρώ υπάρχοντα team numbers ίδιας κατηγορίας
     $rows = db_all(
         $pdo,
         "SELECT teamname FROM `{$T['teams']}` WHERE clubcode=? AND gamecode=? AND category=?",
@@ -195,13 +190,26 @@ function next_teamname(PDO $pdo, array $T, array $club, string $gamecode, string
     );
     $used = [];
     foreach ($rows as $r) {
-        if (preg_match('/(\d+)(w?)$/', $r['teamname'], $m)) { $used[] = (int)$m[1]; }
+        $num = parse_team_number_from_name($r['teamname']);
+        if ($num > 0) { $used[] = $num; }
     }
     $n = 1; while (in_array($n, $used, true)) { $n++; }
 
     $cs = db_one($pdo, "SELECT shortname FROM `{$T['clubs']}` WHERE clubcode=?", [$club['clubcode']]);
     $shortname = $cs['shortname'] ?? substr($club['clubname'], 0, 4);
-    return teamname_for($shortname, $category, $n);
+    return [teamname_for($shortname, $category, $n), $n];
+}
+
+/**
+ * Εξάγει τον αύξοντα αριθμό ομάδας από ένα teamname (π.χ. GAL3 -> 3, GAL2w -> 2, GALmix1 -> 1).
+ * Αναγνωρίζει ρητά τα suffixes "w" και το "mix" για να μην μπερδεύεται με shortnames.
+ */
+function parse_team_number_from_name(string $teamname): int
+{
+    if (preg_match('/(\d+)w?$/', $teamname, $m)) {
+        return (int)$m[1];
+    }
+    return 0;
 }
 
 // ----- GET views --------------------------------------------------------

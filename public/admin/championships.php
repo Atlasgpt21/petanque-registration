@@ -105,7 +105,7 @@ render_header('Πρωταθλήματα', 'admin', 'championships');
             <div class="field"><label class="field__label">Λήξη</label><input class="input" type="date" name="enddate" value="<?= h($edit['enddate'] ?? '') ?>"></div>
             <div class="field"><label class="field__label">Προθεσμία Δηλώσεων</label>
                 <input class="input" type="datetime-local" name="registration_deadline"
-                       value="<?= $edit['registration_deadline'] ? h(date('Y-m-d\TH:i', strtotime($edit['registration_deadline']))) : '' ?>">
+                       value="<?= !empty($edit['registration_deadline']) ? h(date('Y-m-d\TH:i', strtotime($edit['registration_deadline']))) : '' ?>">
             </div>
         </div>
         <button class="btn" type="submit">Αποθήκευση</button>

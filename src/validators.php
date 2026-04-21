@@ -95,7 +95,10 @@ function teamcode_for(string $category, int $teamNumber): string
  */
 function teamname_for(string $clubShort, string $category, int $teamNumber): string
 {
-    $clubShort = preg_replace('/[^A-Z0-9]/', '', strtoupper($clubShort ?: 'CLUB')) ?: 'CLUB';
+    // Αφαιρούμε και ψηφία από το shortname ώστε το suffix με τον αριθμό ομάδας
+    // να είναι πάντα μοναδικό και να γίνεται σωστό parsing (π.χ. αν κάποιος
+    // σύλλογος έχει shortname "A1", δεν θέλουμε να συγχέεται με team number).
+    $clubShort = preg_replace('/[^A-Z]/', '', strtoupper($clubShort ?: 'CLUB')) ?: 'CLUB';
     return match ($category) {
         'M'   => $clubShort . $teamNumber,
         'F'   => $clubShort . $teamNumber . 'w',
