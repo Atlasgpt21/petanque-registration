@@ -148,6 +148,9 @@ FROM `sportsmen`
 WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 
 -- C3) Πρωταθλήματα: games LEFT JOIN app_game_meta για deadline -----------
+-- Σημ: χρησιμοποιούμε COLLATE στο JOIN για να αποφύγουμε "Illegal mix of
+-- collations" όταν ο πίνακας games του πελάτη έχει διαφορετικό collation
+-- (π.χ. MariaDB default utf8mb4_uca1400_ai_ci) από τον νέο app_game_meta.
 CREATE OR REPLACE VIEW `games_v` AS
 SELECT
     g.`gameid`,
@@ -160,7 +163,8 @@ SELECT
     g.`enddate`,
     m.`registration_deadline`
 FROM `games` g
-LEFT JOIN `app_game_meta` m ON m.`gamecode` = g.`gamecode`;
+LEFT JOIN `app_game_meta` m
+    ON m.`gamecode` = g.`gamecode` COLLATE utf8mb4_unicode_ci;
 
 -- ============================================================================
 -- D) Default admin (username=admin, password=admin1234)
