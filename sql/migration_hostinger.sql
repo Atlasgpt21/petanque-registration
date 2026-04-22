@@ -113,17 +113,23 @@ CREATE TABLE IF NOT EXISTS `app_admins` (
 -- C) VIEWs — read-only πάνω στα υπάρχοντα
 -- ============================================================================
 
+-- Σημ: Σε όλους τους VIEW κάνουμε COLLATE στα string columns σε
+-- utf8mb4_unicode_ci ώστε τα JOIN με τους `app_*` πίνακες (που έχουν αυτό
+-- το collation) να μη σκάνε με Error 1267 όταν η βάση έχει MariaDB
+-- default utf8mb4_uca1400_ai_ci.
+
 -- C1) Σύλλογοι: το mitroo γίνεται clubcode του module --------------------
 CREATE OR REPLACE VIEW `clubs_v` AS
 SELECT
     `aaid`                                                  AS `clubid`,
-    `mitroo`                                                AS `clubcode`,
-    `name`                                                  AS `name`,
-    `shortname`                                             AS `shortname`,
-    `city`                                                  AS `city`,
-    `phone`                                                 AS `phone`,
-    `email`                                                 AS `email`,
-    CASE WHEN `ban` = 'Y' THEN 'N' ELSE 'Y' END             AS `active`
+    `mitroo`     COLLATE utf8mb4_unicode_ci                 AS `clubcode`,
+    `name`       COLLATE utf8mb4_unicode_ci                 AS `name`,
+    `shortname`  COLLATE utf8mb4_unicode_ci                 AS `shortname`,
+    `city`       COLLATE utf8mb4_unicode_ci                 AS `city`,
+    `phone`      COLLATE utf8mb4_unicode_ci                 AS `phone`,
+    `email`      COLLATE utf8mb4_unicode_ci                 AS `email`,
+    (CASE WHEN `ban` = 'Y' THEN 'N' ELSE 'Y' END)
+                 COLLATE utf8mb4_unicode_ci                 AS `active`
 FROM `clubs`
 WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 
@@ -131,19 +137,20 @@ WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 CREATE OR REPLACE VIEW `players_v` AS
 SELECT
     `aaid`                                                  AS `playerid`,
-    `mitroo`                                                AS `playercode`,
-    `clubcode`                                              AS `clubcode`,
-    `name`                                                  AS `firstname`,
-    `lastname`                                              AS `lastname`,
-    COALESCE(`gender`, 'M')                                 AS `gender`,
-    `birthday`                                              AS `birthdate`,
-    `idcard`                                                AS `licenseno`,
-    `phone`                                                 AS `phone`,
-    `email`                                                 AS `email`,
-    CASE
+    `mitroo`     COLLATE utf8mb4_unicode_ci                 AS `playercode`,
+    `clubcode`   COLLATE utf8mb4_unicode_ci                 AS `clubcode`,
+    `name`       COLLATE utf8mb4_unicode_ci                 AS `firstname`,
+    `lastname`   COLLATE utf8mb4_unicode_ci                 AS `lastname`,
+    COALESCE(`gender`, 'M')
+                 COLLATE utf8mb4_unicode_ci                 AS `gender`,
+    `birthday`   COLLATE utf8mb4_unicode_ci                 AS `birthdate`,
+    `idcard`     COLLATE utf8mb4_unicode_ci                 AS `licenseno`,
+    `phone`      COLLATE utf8mb4_unicode_ci                 AS `phone`,
+    `email`      COLLATE utf8mb4_unicode_ci                 AS `email`,
+    (CASE
         WHEN `activate` = 'Y' AND (`ban` IS NULL OR `ban` <> 'Y')
             THEN 'Y' ELSE 'N'
-    END                                                     AS `active`
+    END)         COLLATE utf8mb4_unicode_ci                 AS `active`
 FROM `sportsmen`
 WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 
