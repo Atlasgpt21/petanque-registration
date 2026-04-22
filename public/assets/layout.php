@@ -25,7 +25,7 @@ function render_header(string $title, string $role, string $active = ''): void
         ['club_users',    'Λογαριασμοί',        'admin/club_users.php'],
         ['players',       'Αθλητές',            'admin/players.php'],
         ['all_teams',     'Όλες οι δηλώσεις',   'admin/all_teams.php'],
-        ['export',        'Εξαγωγή CSV',        'admin/export.php'],
+        ['export',        'Εξαγωγή',            'admin/export.php'],
     ];
     $links = $role === 'admin' ? $adminLinks : $clubLinks;
 

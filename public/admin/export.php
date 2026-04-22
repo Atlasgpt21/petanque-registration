@@ -13,13 +13,11 @@ if (is_file(APP_ROOT . '/src/xlsx.php')) {
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
 $gamecode = $_GET['g'] ?? null;
-if (!$gamecode) {
-    $g = db_one($pdo, "SELECT gamecode FROM `{$T['games']}` WHERE status='Y' ORDER BY gameid DESC LIMIT 1");
-    $gamecode = $g['gamecode'] ?? null;
-}
+$type     = $_GET['type'] ?? null;
 
-// Αν δεν έχει gamecode, εμφανίζουμε λίστα επιλογής (μέσα σε layout)
-if (!$gamecode || isset($_GET['pick'])) {
+// Χωρίς ρητό type (δηλ. navigation από το menu) ή με ?pick ή χωρίς gamecode
+// → εμφανίζουμε τη λίστα επιλογής πρωταθλήματος + μορφής εξαγωγής.
+if (!$gamecode || !$type || isset($_GET['pick'])) {
     require PUBLIC_ROOT . '/assets/layout.php';
     $games = db_all($pdo, "SELECT gameid, gamecode, name, status FROM `{$T['games']}` ORDER BY gameid DESC");
     render_header('Εξαγωγή', 'admin', 'export');
@@ -42,7 +40,6 @@ if (!$gamecode || isset($_GET['pick'])) {
     exit;
 }
 
-$type = $_GET['type'] ?? 'teams';
 $game = db_one($pdo, "SELECT * FROM `{$T['games']}` WHERE gamecode=?", [$gamecode]);
 if (!$game) { http_response_code(404); exit('Not found'); }
 
