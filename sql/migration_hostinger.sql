@@ -158,6 +158,9 @@ WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 -- Read-only VIEW πάνω στον `users`. Τα περισσότερα πεδία είναι AES-256-CTR
 -- encrypted και αποκρυπτογραφούνται PHP-side από το login_club() fallback.
 -- Το `clubcode` είναι plaintext, οπότε το WHERE μπορεί να φιλτράρει σε SQL.
+-- Όλοι οι users — κράτα admins (χωρίς clubcode) και club users (με clubcode).
+-- Το φιλτράρισμα γίνεται PHP-side (auth.php) αφού `type`/`lvl`/`status`
+-- είναι encrypted και δεν μπορούν να φιλτραριστούν σε SQL.
 CREATE OR REPLACE VIEW `users_v` AS
 SELECT
     `aaid`                                                  AS `userid`,
@@ -168,8 +171,7 @@ SELECT
     `type`       COLLATE utf8mb4_unicode_ci                 AS `type`,
     `status`     COLLATE utf8mb4_unicode_ci                 AS `status`,
     `name`       COLLATE utf8mb4_unicode_ci                 AS `name`
-FROM `users`
-WHERE `clubcode` IS NOT NULL AND `clubcode` <> '';
+FROM `users`;
 
 -- C4) Πρωταθλήματα: games LEFT JOIN app_game_meta για deadline -----------
 -- Σημ: χρησιμοποιούμε COLLATE στο JOIN για να αποφύγουμε "Illegal mix of

@@ -62,21 +62,33 @@ function login_club(PDO $pdo, array $T, string $username, string $password): boo
     return false;
 }
 
+/**
+ * Σύνδεση διαχειριστή. Δοκιμάζει πρώτα τον νέο `app_admins` (test/manual
+ * λογαριασμό), μετά fallback στον υπάρχοντα `users` πίνακα με type='Admin'.
+ */
 function login_admin(PDO $pdo, array $T, string $username, string $password): bool
 {
+    // 1) app_admins (local)
     $u = db_one($pdo, "SELECT * FROM `{$T['admins']}` WHERE username=? AND active=1", [$username]);
-    if (!$u || !password_verify($password, $u['password_hash'])) {
-        return false;
+    if ($u && password_verify($password, $u['password_hash'])) {
+        session_regenerate_id(true);
+        $_SESSION['user'] = [
+            'role'     => 'admin',
+            'id'       => (int)$u['id'],
+            'source'   => 'app',
+            'username' => $u['username'],
+            'fullname' => $u['fullname'] ?? 'Admin',
+        ];
+        $pdo->prepare("UPDATE `{$T['admins']}` SET last_login=NOW() WHERE id=?")->execute([$u['id']]);
+        return true;
     }
-    session_regenerate_id(true);
-    $_SESSION['user'] = [
-        'role'     => 'admin',
-        'id'       => (int)$u['id'],
-        'username' => $u['username'],
-        'fullname' => $u['fullname'] ?? 'Admin',
-    ];
-    $pdo->prepare("UPDATE `{$T['admins']}` SET last_login=NOW() WHERE id=?")->execute([$u['id']]);
-    return true;
+
+    // 2) users_v (legacy): type='Admin' + status='Y'
+    if (!empty($T['users']) && _login_admin_via_users($pdo, $T, $username, $password)) {
+        return true;
+    }
+
+    return false;
 }
 
 function logout(): void
@@ -129,28 +141,82 @@ function _club_session_start(PDO $pdo, array $T, array $info): void
  */
 function _login_club_via_users(PDO $pdo, array $T, string $username, string $password): bool
 {
-    if (!function_exists('hpf_decrypt')) {
+    $row = _find_legacy_user($pdo, $T, $username, $password, function (string $type, string $lvl): bool {
+        // club administrator: type='user' + lvl='lvl1'
+        return strcasecmp($type, 'user') === 0 && strcasecmp($lvl, 'lvl1') === 0;
+    });
+    if ($row === null) {
         return false;
     }
+    if (empty($row['clubcode'])) {
+        return false;
+    }
+    $club = db_one($pdo, "SELECT * FROM `{$T['clubs']}` WHERE clubcode=?", [$row['clubcode']]);
+    if (!$club) {
+        return false;
+    }
+    _club_session_start($pdo, $T, [
+        'id'          => (int)($row['userid'] ?? 0),
+        'source'      => 'users',
+        'username'    => (string)($row['_username_dec'] ?? $username),
+        'clubcode'    => (string)$row['clubcode'],
+        'clubname'    => $club['name'] ?? '',
+        'must_change' => false,
+    ]);
+    return true;
+}
 
-    // Το `clubcode` είναι plaintext. Για να μη γυρνάμε ολόκληρο τον πίνακα
-    // σε κάθε login, αν το input μοιάζει με clubcode κάνουμε πρώτο φιλτράρισμα.
-    // Αλλιώς σκανάρουμε όλους τους ενεργούς club users και κάνουμε match στο
-    // decrypted username.
-    $candidates = db_all(
-        $pdo,
-        "SELECT * FROM `{$T['users']}` WHERE clubcode IS NOT NULL AND clubcode <> ''"
-    );
+/**
+ * Admin login μέσω `users_v`: type='Admin' + status='Y'.
+ */
+function _login_admin_via_users(PDO $pdo, array $T, string $username, string $password): bool
+{
+    $row = _find_legacy_user($pdo, $T, $username, $password, function (string $type, string $lvl): bool {
+        return strcasecmp($type, 'admin') === 0;
+    });
+    if ($row === null) {
+        return false;
+    }
+    session_regenerate_id(true);
+    $_SESSION['user'] = [
+        'role'     => 'admin',
+        'id'       => (int)($row['userid'] ?? 0),
+        'source'   => 'users',
+        'username' => (string)($row['_username_dec'] ?? $username),
+        'fullname' => (string)hpf_decrypt((string)($row['name'] ?? '')) ?: 'Admin',
+    ];
+    return true;
+}
 
-    $inputNorm = _norm_username($username);
+/**
+ * Σκανάρει τον legacy `users` πίνακα, αποκρυπτογραφεί τα encrypted πεδία
+ * και επιστρέφει τη γραμμή που ταιριάζει με το input (username + password)
+ * και περνάει το $typeFilter. Επιστρέφει null αν δεν βρεθεί match.
+ * Η γραμμή που επιστρέφεται έχει ένα extra key `_username_dec` με το
+ * αποκρυπτογραφημένο username.
+ */
+function _find_legacy_user(
+    PDO $pdo,
+    array $T,
+    string $username,
+    string $password,
+    callable $typeFilter
+): ?array {
+    if (!function_exists('hpf_decrypt')) {
+        return null;
+    }
+    $candidates = db_all($pdo, "SELECT * FROM `{$T['users']}`");
+    $inputNorm  = _norm_username($username);
 
     foreach ($candidates as $row) {
         $type   = (string)hpf_decrypt((string)($row['type']   ?? ''));
         $lvl    = (string)hpf_decrypt((string)($row['lvl']    ?? ''));
         $status = (string)hpf_decrypt((string)($row['status'] ?? ''));
 
-        // Μόνο club administrators (type='user' + lvl='lvl1') με status='Y'
-        if ($type !== 'user' || $lvl !== 'lvl1' || $status !== 'Y') {
+        if (strcasecmp($status, 'Y') !== 0) {
+            continue;
+        }
+        if (!$typeFilter($type, $lvl)) {
             continue;
         }
 
@@ -158,29 +224,14 @@ function _login_club_via_users(PDO $pdo, array $T, string $username, string $pas
         if (_norm_username($uname) !== $inputNorm) {
             continue;
         }
-
         if (!_verify_user_password($password, (string)($row['password'] ?? ''))) {
             continue;
         }
 
-        // Match found
-        $club = db_one($pdo, "SELECT * FROM `{$T['clubs']}` WHERE clubcode=?", [$row['clubcode']]);
-        if (!$club) {
-            return false;
-        }
-
-        _club_session_start($pdo, $T, [
-            'id'          => (int)($row['userid'] ?? 0),
-            'source'      => 'users',
-            'username'    => $uname,
-            'clubcode'    => (string)$row['clubcode'],
-            'clubname'    => $club['name'] ?? '',
-            'must_change' => false,
-        ]);
-        return true;
+        $row['_username_dec'] = $uname;
+        return $row;
     }
-
-    return false;
+    return null;
 }
 
 /**
