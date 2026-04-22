@@ -163,7 +163,7 @@ SELECT
     `aaid`                                                  AS `userid`,
     `clubcode`   COLLATE utf8mb4_unicode_ci                 AS `clubcode`,
     `username`   COLLATE utf8mb4_unicode_ci                 AS `username`,
-    `password`   COLLATE utf8mb4_unicode_ci                 AS `password`,
+    `pass`       COLLATE utf8mb4_unicode_ci                 AS `password`,
     `lvl`        COLLATE utf8mb4_unicode_ci                 AS `lvl`,
     `type`       COLLATE utf8mb4_unicode_ci                 AS `type`,
     `status`     COLLATE utf8mb4_unicode_ci                 AS `status`,
