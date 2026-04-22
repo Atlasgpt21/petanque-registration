@@ -38,7 +38,24 @@ CREATE TABLE IF NOT EXISTS `app_game_meta` (
     `updated_at`             TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
                                            ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`gamecode`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- B1b) Νέα πρωταθλήματα που δημιουργούνται από αυτό το module -------------
+-- Η άλλη εφαρμογή ΔΕΝ τα βλέπει (γράφει μόνο στον δικό της `games`).
+-- Το `games_v` VIEW τα ενώνει με τον `games` ώστε εμείς να τα βλέπουμε ενιαία.
+CREATE TABLE IF NOT EXISTS `app_games` (
+    `gameid`     INT(11)      NOT NULL AUTO_INCREMENT,
+    `name`       VARCHAR(255) NOT NULL,
+    `gamecode`   VARCHAR(64)  NOT NULL,
+    `gametype`   VARCHAR(32)  NOT NULL DEFAULT 'Doubles',
+    `category`   VARCHAR(64)  NOT NULL DEFAULT 'Πρωτάθλημα',
+    `status`     CHAR(1)      NOT NULL DEFAULT 'N',
+    `startdate`  DATE         NULL,
+    `enddate`    DATE         NULL,
+    `created_at` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`gameid`),
+    UNIQUE KEY `uniq_gamecode` (`gamecode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- B2) Δηλώσεις συλλόγων ανά πρωτάθλημα (αντί για games3) -------------------
 CREATE TABLE IF NOT EXISTS `app_aa` (
@@ -173,24 +190,44 @@ SELECT
     `name`       COLLATE utf8mb4_unicode_ci                 AS `name`
 FROM `users`;
 
--- C4) Πρωταθλήματα: games LEFT JOIN app_game_meta για deadline -----------
--- Σημ: χρησιμοποιούμε COLLATE στο JOIN για να αποφύγουμε "Illegal mix of
--- collations" όταν ο πίνακας games του πελάτη έχει διαφορετικό collation
--- (π.χ. MariaDB default utf8mb4_uca1400_ai_ci) από τον νέο app_game_meta.
+-- C4) Πρωταθλήματα: UNION των υπάρχοντων `games` + των νέων `app_games`.
+-- Τα νέα παίρνουν gameid + 1000000 offset για να διακρίνονται στο UI και
+-- στο save path. Η στήλη `source` λέει σε ποιον πίνακα ανήκει κάθε row.
+-- Σημ: χρησιμοποιούμε COLLATE για να αποφύγουμε "Illegal mix of collations"
+-- όταν ο υπάρχων `games` έχει διαφορετικό collation (π.χ. MariaDB default
+-- utf8mb4_uca1400_ai_ci) από τους νέους πίνακες.
 CREATE OR REPLACE VIEW `games_v` AS
 SELECT
-    g.`gameid`,
-    g.`name`,
-    g.`gamecode`,
-    g.`gametype`,
-    g.`category`,
-    g.`status`,
-    g.`startdate`,
-    g.`enddate`,
-    m.`registration_deadline`
+    g.`gameid`                                               AS `gameid`,
+    CAST('games' AS CHAR) COLLATE utf8mb4_unicode_ci         AS `source`,
+    g.`name`      COLLATE utf8mb4_unicode_ci                 AS `name`,
+    g.`gamecode`  COLLATE utf8mb4_unicode_ci                 AS `gamecode`,
+    g.`gametype`  COLLATE utf8mb4_unicode_ci                 AS `gametype`,
+    g.`category`  COLLATE utf8mb4_unicode_ci                 AS `category`,
+    g.`status`    COLLATE utf8mb4_unicode_ci                 AS `status`,
+    g.`startdate`                                            AS `startdate`,
+    g.`enddate`                                              AS `enddate`,
+    m.`registration_deadline`                                AS `registration_deadline`
 FROM `games` g
 LEFT JOIN `app_game_meta` m
-    ON m.`gamecode` = g.`gamecode` COLLATE utf8mb4_unicode_ci;
+    ON m.`gamecode` = g.`gamecode` COLLATE utf8mb4_unicode_ci
+
+UNION ALL
+
+SELECT
+    ag.`gameid` + 1000000                                    AS `gameid`,
+    CAST('app_games' AS CHAR) COLLATE utf8mb4_unicode_ci     AS `source`,
+    ag.`name`     COLLATE utf8mb4_unicode_ci                 AS `name`,
+    ag.`gamecode` COLLATE utf8mb4_unicode_ci                 AS `gamecode`,
+    ag.`gametype` COLLATE utf8mb4_unicode_ci                 AS `gametype`,
+    ag.`category` COLLATE utf8mb4_unicode_ci                 AS `category`,
+    ag.`status`   COLLATE utf8mb4_unicode_ci                 AS `status`,
+    ag.`startdate`                                           AS `startdate`,
+    ag.`enddate`                                             AS `enddate`,
+    m.`registration_deadline`                                AS `registration_deadline`
+FROM `app_games` ag
+LEFT JOIN `app_game_meta` m
+    ON m.`gamecode` = ag.`gamecode` COLLATE utf8mb4_unicode_ci;
 
 -- ============================================================================
 -- D) Default admin (username=admin, password=admin1234)

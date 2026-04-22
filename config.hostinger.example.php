@@ -22,7 +22,8 @@ return [
     // στη βάση της ΕΟΠ. Δημιουργούνται από το sql/migration_hostinger.sql.
     'tables' => [
         // Reads πάνω σε υπάρχοντα — όλα μέσω VIEWs (καμία αλλαγή δεν γίνεται).
-        'games'      => 'games_v',        // games LEFT JOIN app_game_meta
+        'games'      => 'games_v',        // UNION games + app_games + app_game_meta
+        'app_games'  => 'app_games',      // writable table για νέα πρωταθλήματα
         'clubs'      => 'clubs_v',        // VIEW clubs (mitroo AS clubcode, …)
         'players'    => 'players_v',      // VIEW sportsmen (name AS firstname, …)
         'users'      => 'users_v',        // VIEW users — υπάρχοντες λογαριασμοί συλλόγων
