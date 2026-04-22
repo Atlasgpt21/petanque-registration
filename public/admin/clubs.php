@@ -4,9 +4,20 @@ require APP_ROOT . '/public/assets/layout.php';
 require_admin();
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
+$readonly = is_readonly_external();
 $action = $_GET['action'] ?? '';
 $editId = (int)($_GET['id'] ?? 0);
 $edit = null;
+
+if ($readonly && ($action === 'new' || $action === 'edit')) {
+    flash_set('warning', 'Η διαχείριση συλλόγων γίνεται στο κεντρικό σύστημα της ΕΟΠ. Εδώ μόνο προβολή.');
+    redirect(url('admin/clubs.php'));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $readonly) {
+    flash_set('error', 'Η διαχείριση συλλόγων είναι απενεργοποιημένη σε αυτή την εγκατάσταση.');
+    redirect(url('admin/clubs.php'));
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -67,8 +78,11 @@ $clubs = db_all($pdo, "SELECT * FROM `{$T['clubs']}` ORDER BY name");
 render_header('Σύλλογοι', 'admin', 'clubs');
 ?>
 <div class="main__header">
-    <div><h2 class="main__title">Σύλλογοι</h2></div>
-    <?php if (!$edit): ?><a class="btn" href="<?= h(url('admin/clubs.php?action=new')) ?>">+ Νέος Σύλλογος</a><?php endif; ?>
+    <div>
+        <h2 class="main__title">Σύλλογοι</h2>
+        <?php if ($readonly): ?><p class="main__sub">Προβολή μόνο — τα δεδομένα διαχειρίζονται στο κεντρικό σύστημα.</p><?php endif; ?>
+    </div>
+    <?php if (!$edit && !$readonly): ?><a class="btn" href="<?= h(url('admin/clubs.php?action=new')) ?>">+ Νέος Σύλλογος</a><?php endif; ?>
 </div>
 <?php if ($edit): ?>
 <div class="card">
@@ -111,11 +125,15 @@ render_header('Σύλλογοι', 'admin', 'clubs');
                 <td><?= h($c['email'] ?? '—') ?></td>
                 <td><span class="badge <?= $c['active']==='Y'?'badge--on':'badge--off' ?>"><?= $c['active']==='Y'?'Ενεργός':'Ανενεργός' ?></span></td>
                 <td class="actions">
-                    <a class="btn btn--sm btn--ghost" href="<?= h(url('admin/clubs.php?action=edit&id=' . $c['clubid'])) ?>">Επεξεργασία</a>
-                    <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή;');">
-                        <?= csrf_field() ?><input type="hidden" name="op" value="delete"><input type="hidden" name="clubid" value="<?= (int)$c['clubid'] ?>">
-                        <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
-                    </form>
+                    <?php if (!$readonly): ?>
+                        <a class="btn btn--sm btn--ghost" href="<?= h(url('admin/clubs.php?action=edit&id=' . $c['clubid'])) ?>">Επεξεργασία</a>
+                        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή;');">
+                            <?= csrf_field() ?><input type="hidden" name="op" value="delete"><input type="hidden" name="clubid" value="<?= (int)$c['clubid'] ?>">
+                            <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
+                        </form>
+                    <?php else: ?>
+                        <span class="muted">—</span>
+                    <?php endif; ?>
                 </td>
             </tr>
         <?php endforeach; ?>

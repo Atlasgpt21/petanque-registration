@@ -5,11 +5,22 @@ require_club();
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
 $club = $_SESSION['user'];
+$readonly = is_readonly_external();
 
 // Actions
 $action = $_GET['action'] ?? '';
 $editId = (int)($_GET['id'] ?? 0);
 $edit = null;
+
+if ($readonly && ($action === 'new' || $action === 'edit')) {
+    flash_set('warning', 'Η διαχείριση αθλητών γίνεται στο κεντρικό σύστημα της ΕΟΠ. Εδώ μόνο προβολή.');
+    redirect(url('club/athletes.php'));
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $readonly) {
+    flash_set('error', 'Η διαχείριση αθλητών είναι απενεργοποιημένη σε αυτή την εγκατάσταση.');
+    redirect(url('club/athletes.php'));
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -98,10 +109,13 @@ render_header('Αθλητές — ' . $club['clubname'], 'club', 'athletes');
         <h2 class="main__title">Αθλητές Συλλόγου</h2>
         <p class="main__sub"><?= count($players) ?> καταχωρημένοι αθλητές</p>
     </div>
-    <?php if (!$edit): ?>
+    <?php if (!$edit && !$readonly): ?>
         <a class="btn" href="<?= h(url('club/athletes.php?action=new')) ?>">+ Νέος Αθλητής</a>
     <?php endif; ?>
 </div>
+<?php if ($readonly): ?>
+    <div class="flash flash--info">Η λίστα αθλητών έρχεται από το κεντρικό σύστημα της ΕΟΠ. Για εγγραφές/διαγραφές, χρησιμοποιήστε το κεντρικό σύστημα.</div>
+<?php endif; ?>
 
 <?php if ($edit): ?>
     <div class="card">
@@ -174,13 +188,17 @@ render_header('Αθλητές — ' . $club['clubname'], 'club', 'athletes');
                     <td><?= h($p['birthdate'] ?? '—') ?></td>
                     <td><?= h($p['licenseno'] ?? '—') ?></td>
                     <td class="actions">
-                        <a class="btn btn--sm btn--ghost" href="<?= h(url('club/athletes.php?action=edit&id=' . $p['playerid'])) ?>">Επεξεργασία</a>
-                        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή αθλητή;');">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="op" value="delete">
-                            <input type="hidden" name="playerid" value="<?= (int)$p['playerid'] ?>">
-                            <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
-                        </form>
+                        <?php if (!$readonly): ?>
+                            <a class="btn btn--sm btn--ghost" href="<?= h(url('club/athletes.php?action=edit&id=' . $p['playerid'])) ?>">Επεξεργασία</a>
+                            <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή αθλητή;');">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="op" value="delete">
+                                <input type="hidden" name="playerid" value="<?= (int)$p['playerid'] ?>">
+                                <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
+                            </form>
+                        <?php else: ?>
+                            <span class="muted">—</span>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

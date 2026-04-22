@@ -4,6 +4,7 @@ require APP_ROOT . '/public/assets/layout.php';
 require_admin();
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
+$readonly = is_readonly_external();
 $clubcodeFilter = $_GET['club'] ?? '';
 $q = trim((string)($_GET['q'] ?? ''));
 
@@ -19,7 +20,13 @@ $clubs = db_all($pdo, "SELECT clubcode, name FROM `{$T['clubs']}` ORDER BY name"
 render_header('Αθλητές', 'admin', 'players');
 ?>
 <div class="main__header">
-    <div><h2 class="main__title">Αθλητές</h2><p class="main__sub">Σύνολο (φιλτραρισμένο): <?= count($players) ?></p></div>
+    <div>
+        <h2 class="main__title">Αθλητές</h2>
+        <p class="main__sub">
+            Σύνολο (φιλτραρισμένο): <?= count($players) ?>
+            <?php if ($readonly): ?>· <em>προβολή από κεντρικό σύστημα</em><?php endif; ?>
+        </p>
+    </div>
 </div>
 <div class="card">
     <form method="get" class="row">

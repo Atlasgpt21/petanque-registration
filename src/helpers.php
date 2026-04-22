@@ -96,6 +96,15 @@ function gender_label(string $g): string
     return $g === 'M' ? 'Άνδρας' : ($g === 'F' ? 'Γυναίκα' : $g);
 }
 
+/**
+ * True όταν το app δείχνει σύλλογοι/αθλητές από εξωτερικό σύστημα (read-only views).
+ * Σε αυτή την περίπτωση τα CRUD UI πρέπει να είναι κρυμμένα/disabled.
+ */
+function is_readonly_external(): bool
+{
+    return !empty($GLOBALS['CONFIG']['readonly_external_data']);
+}
+
 /** Gametype label */
 function gametype_label(string $gt): string
 {
