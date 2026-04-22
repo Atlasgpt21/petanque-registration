@@ -1,5 +1,9 @@
 <?php
-require __DIR__ . '/../../src/bootstrap.php';
+// Εύρεση src/bootstrap.php ανεβαίνοντας φακέλους — ανθεκτικό σε διαφορετικά deployments.
+for ($d = __DIR__; $d !== dirname($d); $d = dirname($d)) {
+    if (is_file($d . '/src/bootstrap.php')) { require $d . '/src/bootstrap.php'; break; }
+}
+unset($d);
 require_admin();
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
@@ -11,7 +15,7 @@ if (!$gamecode) {
 
 // Αν δεν έχει gamecode, εμφανίζουμε λίστα επιλογής (μέσα σε layout)
 if (!$gamecode || isset($_GET['pick'])) {
-    require APP_ROOT . '/public/assets/layout.php';
+    require PUBLIC_ROOT . '/assets/layout.php';
     $games = db_all($pdo, "SELECT gameid, gamecode, name, status FROM `{$T['games']}` ORDER BY gameid DESC");
     render_header('Εξαγωγή CSV', 'admin', 'export');
     echo '<div class="main__header"><div><h2 class="main__title">Εξαγωγή CSV</h2><p class="main__sub">Επιλέξτε πρωτάθλημα για εξαγωγή δηλώσεων</p></div></div>';

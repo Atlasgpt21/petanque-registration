@@ -1,7 +1,7 @@
 <?php
 // Shared layout helpers (header + sidebar + footer) για club & admin.
 // Χρήση:
-//   require APP_ROOT . '/public/assets/layout.php';
+//   require PUBLIC_ROOT . '/assets/layout.php';
 //   render_header('Τίτλος', 'club', 'dashboard');
 //     ...html...
 //   render_footer();

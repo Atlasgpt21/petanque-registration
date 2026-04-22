@@ -1,6 +1,10 @@
 <?php
-require __DIR__ . '/../../src/bootstrap.php';
-require APP_ROOT . '/public/assets/layout.php';
+// Εύρεση src/bootstrap.php ανεβαίνοντας φακέλους — ανθεκτικό σε διαφορετικά deployments.
+for ($d = __DIR__; $d !== dirname($d); $d = dirname($d)) {
+    if (is_file($d . '/src/bootstrap.php')) { require $d . '/src/bootstrap.php'; break; }
+}
+unset($d);
+require PUBLIC_ROOT . '/assets/layout.php';
 require_admin();
 
 $pdo = $GLOBALS['PDO']; $T = $GLOBALS['T'];
