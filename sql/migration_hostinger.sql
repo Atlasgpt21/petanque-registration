@@ -154,7 +154,24 @@ SELECT
 FROM `sportsmen`
 WHERE `mitroo` IS NOT NULL AND `mitroo` <> '';
 
--- C3) Πρωταθλήματα: games LEFT JOIN app_game_meta για deadline -----------
+-- C3) Users (υπάρχοντες λογαριασμοί συλλόγων) --------------------------------
+-- Read-only VIEW πάνω στον `users`. Τα περισσότερα πεδία είναι AES-256-CTR
+-- encrypted και αποκρυπτογραφούνται PHP-side από το login_club() fallback.
+-- Το `clubcode` είναι plaintext, οπότε το WHERE μπορεί να φιλτράρει σε SQL.
+CREATE OR REPLACE VIEW `users_v` AS
+SELECT
+    `aaid`                                                  AS `userid`,
+    `clubcode`   COLLATE utf8mb4_unicode_ci                 AS `clubcode`,
+    `username`   COLLATE utf8mb4_unicode_ci                 AS `username`,
+    `password`   COLLATE utf8mb4_unicode_ci                 AS `password`,
+    `lvl`        COLLATE utf8mb4_unicode_ci                 AS `lvl`,
+    `type`       COLLATE utf8mb4_unicode_ci                 AS `type`,
+    `status`     COLLATE utf8mb4_unicode_ci                 AS `status`,
+    `name`       COLLATE utf8mb4_unicode_ci                 AS `name`
+FROM `users`
+WHERE `clubcode` IS NOT NULL AND `clubcode` <> '';
+
+-- C4) Πρωταθλήματα: games LEFT JOIN app_game_meta για deadline -----------
 -- Σημ: χρησιμοποιούμε COLLATE στο JOIN για να αποφύγουμε "Illegal mix of
 -- collations" όταν ο πίνακας games του πελάτη έχει διαφορετικό collation
 -- (π.χ. MariaDB default utf8mb4_uca1400_ai_ci) από τον νέο app_game_meta.

@@ -25,6 +25,7 @@ return [
         'games'      => 'games_v',        // games LEFT JOIN app_game_meta
         'clubs'      => 'clubs_v',        // VIEW clubs (mitroo AS clubcode, …)
         'players'    => 'players_v',      // VIEW sportsmen (name AS firstname, …)
+        'users'      => 'users_v',        // VIEW users — υπάρχοντες λογαριασμοί συλλόγων
 
         // Writes γίνονται ΜΟΝΟ σε νέους (app_*) πίνακες — κανένας υπάρχων
         // πίνακας δεν αγγίζεται.
@@ -62,6 +63,11 @@ return [
         'columns' => [
             'clubs'   => ['name', 'city'],
             'players' => ['firstname', 'lastname'],
+            // users: encrypted fields στον υπάρχοντα πίνακα `users`.
+            // Το `password` δεν μπαίνει εδώ — χειρίζεται ειδικά στο auth.php
+            // (μπορεί να είναι AES-CTR ή bcrypt, ανάλογα με το αν ο χρήστης
+            // έχει ήδη μπει μια φορά στην άλλη εφαρμογή).
+            'users'   => ['username', 'lvl', 'type', 'status', 'name'],
         ],
     ],
 ];
