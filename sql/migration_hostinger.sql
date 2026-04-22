@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS `app_teams` (
     `gamecode`    VARCHAR(64)  NOT NULL,
     `teamname`    VARCHAR(64)  NOT NULL,
     `playercodes` VARCHAR(255) NOT NULL,
+    `substitutes` VARCHAR(255) NULL,
     `category`    VARCHAR(3)   NOT NULL DEFAULT 'M',
     `status`      CHAR(1)      NOT NULL DEFAULT 'Y',
     `created_at`  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
@@ -83,6 +84,9 @@ CREATE TABLE IF NOT EXISTS `app_teams` (
     KEY `idx_club_game_status` (`clubcode`, `gamecode`, `status`),
     KEY `idx_game_cat` (`gamecode`, `category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Σε υπάρχουσα εγκατάσταση, πρόσθεσε τη στήλη αν λείπει (idempotent):
+-- ALTER TABLE `app_teams` ADD COLUMN `substitutes` VARCHAR(255) NULL AFTER `playercodes`;
 
 -- B4) Player entries ανά ομάδα (αντί για games2) ---------------------------
 CREATE TABLE IF NOT EXISTS `app_games2` (
@@ -92,12 +96,16 @@ CREATE TABLE IF NOT EXISTS `app_games2` (
     `gamecode`    VARCHAR(64)  NOT NULL,
     `checkstatus` CHAR(1)      NOT NULL DEFAULT 'Y',
     `teamcode`    VARCHAR(64)  NOT NULL,
+    `role`        VARCHAR(16)  NOT NULL DEFAULT 'starter',
     `save`        CHAR(1)      NOT NULL DEFAULT 'Y',
     `created_at`  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`games2id`),
     KEY `idx_game_club` (`gamecode`, `clubcode`),
     KEY `idx_player_game` (`playercode1`, `gamecode`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Σε υπάρχουσα εγκατάσταση, πρόσθεσε τη στήλη αν λείπει (idempotent):
+-- ALTER TABLE `app_games2` ADD COLUMN `role` VARCHAR(16) NOT NULL DEFAULT 'starter' AFTER `teamcode`;
 
 -- B5) Login tables (μόνο για αυτό το module) -------------------------------
 CREATE TABLE IF NOT EXISTS `app_club_users` (

@@ -47,11 +47,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         else {
             $pdo->beginTransaction();
             try {
-                // Διαγραφή games2 εγγραφών των παικτών της ομάδας
-                $codes = explode('-', $t['playercodes']);
-                $place = array_fill(0, count($codes), '?');
+                // Διαγραφή games2 εγγραφών των παικτών της ομάδας (βασικών + αναπληρωματικών)
+                $allCodes = explode('-', $t['playercodes']);
+                if (!empty($t['substitutes'])) {
+                    foreach (explode('-', (string)$t['substitutes']) as $sc) {
+                        if ($sc !== '') { $allCodes[] = $sc; }
+                    }
+                }
+                $place = array_fill(0, count($allCodes), '?');
                 $st = $pdo->prepare("DELETE FROM `{$T['games2']}` WHERE gamecode=? AND clubcode=? AND playercode1 IN (" . implode(',', $place) . ")");
-                $st->execute(array_merge([$game['gamecode'], $club['clubcode']], $codes));
+                $st->execute(array_merge([$game['gamecode'], $club['clubcode']], $allCodes));
                 // Διαγραφή ομάδας
                 $pdo->prepare("DELETE FROM `{$T['teams']}` WHERE teamid=?")->execute([$tid]);
                 // Αν δεν έμεινε καμία ομάδα, διαγραφή της aa εγγραφής
@@ -75,6 +80,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $playercodesRaw = trim((string)($_POST['playercodes'] ?? ''));
         $codes = array_values(array_filter(explode('-', $playercodesRaw), 'strlen'));
 
+        // Αναπληρωματικός — μόνο για Τριπλέτες, max 1
+        $substituteCode = trim((string)($_POST['substitute'] ?? ''));
+        if ($game['gametype'] !== 'Triplets') {
+            $substituteCode = '';
+        }
+        if ($substituteCode !== '' && in_array($substituteCode, $codes, true)) {
+            flash_set('error', 'Ο αναπληρωματικός δεν μπορεί να είναι ταυτόχρονα και βασικός.');
+            redirect(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=' . ($tid ? "edit&id=$tid" : 'new') . '&cat=' . urlencode($category)));
+        }
+
         $allowedCats = categories_for($game['gametype']);
         if (!in_array($category, $allowedCats, true)) {
             flash_set('error', 'Μη έγκυρη κατηγορία για αυτό το πρωτάθλημα.');
@@ -86,6 +101,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($codes) {
             $in = implode(',', array_fill(0, count($codes), '?'));
             $playerRows = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode IN ($in)", $codes);
+        }
+
+        // Ανάκτηση αναπληρωματικού
+        $substituteRow = null;
+        if ($substituteCode !== '') {
+            $substituteRow = db_one($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode=?", [$substituteCode]);
+            if (!$substituteRow) {
+                flash_set('error', 'Μη έγκυρος αναπληρωματικός αθλητής.');
+                redirect(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=' . ($tid ? "edit&id=$tid" : 'new') . '&cat=' . urlencode($category)));
+            }
+            if ($substituteRow['clubcode'] !== $club['clubcode']) {
+                flash_set('error', 'Ο αναπληρωματικός πρέπει να ανήκει στον σύλλογό σας.');
+                redirect(url('club/teams.php?g=' . urlencode($game['gamecode'])));
+            }
+            if ($category === 'M' && $substituteRow['gender'] !== 'M') {
+                flash_set('error', 'Στην κατηγορία Ανδρών ο αναπληρωματικός πρέπει να είναι άνδρας.');
+                redirect(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=' . ($tid ? "edit&id=$tid" : 'new') . '&cat=' . urlencode($category)));
+            }
+            if ($category === 'F' && $substituteRow['gender'] !== 'F') {
+                flash_set('error', 'Στην κατηγορία Γυναικών η αναπληρωματική πρέπει να είναι γυναίκα.');
+                redirect(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=' . ($tid ? "edit&id=$tid" : 'new') . '&cat=' . urlencode($category)));
+            }
         }
 
         // Ταυτοποίηση όλων των clubcodes ως ίδιος σύλλογος
@@ -102,11 +139,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=' . ($tid ? "edit&id=$tid" : 'new') . '&cat=' . urlencode($category)));
         }
 
-        // Ελέγχεται ότι κανένας παίκτης δεν είναι ήδη σε άλλη ομάδα αυτού του πρωταθλήματος
-        $in = implode(',', array_fill(0, count($codes), '?'));
-        $params = array_merge($codes, [$game['gamecode']]);
-        $excludeSql = '';
-        if ($tid > 0) { $excludeSql = ' AND games2id NOT IN (SELECT games2id FROM (SELECT games2id FROM `'.$T['games2'].'` g2 WHERE g2.gamecode=? AND EXISTS (SELECT 1 FROM `'.$T['teams'].'` t WHERE t.teamid=? AND FIND_IN_SET(g2.playercode1, REPLACE(t.playercodes, "-", ","))) ) tmp)'; }
+        // Όλοι οι αθλητές για uniqueness check (βασικοί + αναπληρωματικός)
+        $allCodes = $codes;
+        if ($substituteCode !== '') { $allCodes[] = $substituteCode; }
+        $inAll = implode(',', array_fill(0, count($allCodes), '?'));
+
         // Simpler: πρώτα διαγράφουμε τις παλιές games2 της ομάδας (αν edit) μέσα σε transaction, μετά ελέγχουμε.
         try {
             $pdo->beginTransaction();
@@ -115,6 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existing = db_one($pdo, "SELECT * FROM `{$T['teams']}` WHERE teamid=? AND clubcode=? AND gamecode=?", [$tid, $club['clubcode'], $game['gamecode']]);
                 if (!$existing) throw new RuntimeException('Δεν βρέθηκε ομάδα προς επεξεργασία.');
                 $oldCodes = explode('-', $existing['playercodes']);
+                if (!empty($existing['substitutes'])) {
+                    foreach (explode('-', (string)$existing['substitutes']) as $oc) {
+                        if ($oc !== '') { $oldCodes[] = $oc; }
+                    }
+                }
                 if ($oldCodes) {
                     $phOld = implode(',', array_fill(0, count($oldCodes), '?'));
                     $pdo->prepare("DELETE FROM `{$T['games2']}` WHERE gamecode=? AND clubcode=? AND playercode1 IN ($phOld)")
@@ -122,10 +164,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Έλεγχος ότι κανένας δεν είναι σε άλλη ομάδα (μετά τη διαγραφή)
+            // Έλεγχος ότι κανένας δεν είναι σε άλλη ομάδα (μετά τη διαγραφή) — είτε βασικός είτε αναπληρωματικός
             $conflict = db_one($pdo,
-                "SELECT playercode1 FROM `{$T['games2']}` WHERE gamecode=? AND playercode1 IN ($in) LIMIT 1",
-                array_merge([$game['gamecode']], $codes)
+                "SELECT playercode1 FROM `{$T['games2']}` WHERE gamecode=? AND playercode1 IN ($inAll) LIMIT 1",
+                array_merge([$game['gamecode']], $allCodes)
             );
             if ($conflict) {
                 throw new RuntimeException('Ο αθλητής ' . $conflict['playercode1'] . ' είναι ήδη δηλωμένος σε άλλη ομάδα.');
@@ -145,22 +187,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 [$tn, $teamNumber] = next_teamname($pdo, $T, $club, $game['gamecode'], $category);
             }
 
-            // Save team
+            // Save team (substitutes: single code ή NULL)
+            $subsField = $substituteCode !== '' ? $substituteCode : null;
             if ($tid > 0) {
-                $pdo->prepare("UPDATE `{$T['teams']}` SET teamname=?, playercodes=?, category=?, status='Y' WHERE teamid=?")
-                    ->execute([$tn, implode('-', $codes), $category, $tid]);
+                $pdo->prepare("UPDATE `{$T['teams']}` SET teamname=?, playercodes=?, substitutes=?, category=?, status='Y' WHERE teamid=?")
+                    ->execute([$tn, implode('-', $codes), $subsField, $category, $tid]);
             } else {
-                $pdo->prepare("INSERT INTO `{$T['teams']}` (teamname, playercodes, gamecode, status, clubcode, category) VALUES (?,?,?,?,?,?)")
-                    ->execute([$tn, implode('-', $codes), $game['gamecode'], 'Y', $club['clubcode'], $category]);
+                $pdo->prepare("INSERT INTO `{$T['teams']}` (teamname, playercodes, substitutes, gamecode, status, clubcode, category) VALUES (?,?,?,?,?,?,?)")
+                    ->execute([$tn, implode('-', $codes), $subsField, $game['gamecode'], 'Y', $club['clubcode'], $category]);
             }
 
-            // Insert games2 εγγραφές — κάθε παίκτης παίρνει μοναδικό teamcode
+            // Detect role column (exists only after ALTER TABLE app_games2 ADD COLUMN role)
+            $hasRoleCol = false;
+            try {
+                $colChk = db_one($pdo, "SHOW COLUMNS FROM `{$T['games2']}` LIKE 'role'");
+                $hasRoleCol = !empty($colChk);
+            } catch (Throwable $e) { $hasRoleCol = false; }
+
+            // Insert games2 εγγραφές — κάθε βασικός παίκτης παίρνει μοναδικό teamcode
             // Για ομάδα N μεγέθους k: indices (N-1)*k+1 ... N*k
             $teamSize = count($codes);
-            $st = $pdo->prepare("INSERT INTO `{$T['games2']}` (playercode1, clubcode, gamecode, checkstatus, teamcode, `save`) VALUES (?,?,?,?,?,?)");
-            foreach ($codes as $i => $pcode) {
-                $tcIndex = ($teamNumber - 1) * $teamSize + ($i + 1);
-                $st->execute([$pcode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'Y']);
+            if ($hasRoleCol) {
+                $st = $pdo->prepare("INSERT INTO `{$T['games2']}` (playercode1, clubcode, gamecode, checkstatus, teamcode, `role`, `save`) VALUES (?,?,?,?,?,?,?)");
+                foreach ($codes as $i => $pcode) {
+                    $tcIndex = ($teamNumber - 1) * $teamSize + ($i + 1);
+                    $st->execute([$pcode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'starter', 'Y']);
+                }
+                if ($substituteCode !== '') {
+                    // Ο αναπληρωματικός παίρνει το teamcode της ομάδας (1ο index)
+                    $tcIndex = ($teamNumber - 1) * $teamSize + 1;
+                    $st->execute([$substituteCode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'substitute', 'Y']);
+                }
+            } else {
+                $st = $pdo->prepare("INSERT INTO `{$T['games2']}` (playercode1, clubcode, gamecode, checkstatus, teamcode, `save`) VALUES (?,?,?,?,?,?)");
+                foreach ($codes as $i => $pcode) {
+                    $tcIndex = ($teamNumber - 1) * $teamSize + ($i + 1);
+                    $st->execute([$pcode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'Y']);
+                }
+                if ($substituteCode !== '') {
+                    $tcIndex = ($teamNumber - 1) * $teamSize + 1;
+                    $st->execute([$substituteCode, $club['clubcode'], $game['gamecode'], 'Y', teamcode_for($category, $tcIndex), 'Y']);
+                }
             }
 
             // Ενημέρωση aa
@@ -222,7 +289,7 @@ if ($action === 'edit' && $editId > 0) {
     if (!$edit) { flash_set('error', 'Δεν βρέθηκε ομάδα.'); redirect(url('club/teams.php?g=' . urlencode($game['gamecode']))); }
 }
 if ($action === 'new') {
-    $edit = ['teamid' => 0, 'category' => $_GET['cat'] ?? (categories_for($game['gametype'])[0] ?? 'M'), 'playercodes' => ''];
+    $edit = ['teamid' => 0, 'category' => $_GET['cat'] ?? (categories_for($game['gametype'])[0] ?? 'M'), 'playercodes' => '', 'substitutes' => ''];
 }
 
 // Φόρτωσε όλους τους παίκτες του συλλόγου
@@ -331,6 +398,36 @@ render_header('Δηλώσεις — ' . $game['gamecode'], 'club', 'teams');
             <div>
                 <div class="field__label">Επιλεγμένη ομάδα</div>
                 <div class="selected-box" data-selected-summary></div>
+
+                <?php if ($game['gametype'] === 'Triplets'): ?>
+                    <?php
+                    // Διαθέσιμοι αναπληρωματικοί: ίδιο φύλο κατηγορίας, ίδιος σύλλογος,
+                    // όχι ήδη δηλωμένοι σε άλλη ομάδα αυτού του πρωταθλήματος.
+                    $currentSub = (string)($edit['substitutes'] ?? '');
+                    $subCandidates = array_filter($players, function($p) use ($cat, $declaredCodes, $currentSub) {
+                        if ($cat === 'M' && $p['gender'] !== 'M') return false;
+                        if ($cat === 'F' && $p['gender'] !== 'F') return false;
+                        // Αν είναι ήδη δηλωμένος αλλού, κρύβεται (εκτός αν είναι ο τρέχων sub της ομάδας)
+                        if (!empty($declaredCodes[$p['playercode']]) && $p['playercode'] !== $currentSub) return false;
+                        return true;
+                    });
+                    ?>
+                    <div class="field mt-16">
+                        <div class="field__label">Αναπληρωματικός (προαιρετικά, max 1)</div>
+                        <select name="substitute" class="input" data-substitute-select>
+                            <option value="">— Κανένας —</option>
+                            <?php foreach ($subCandidates as $p): ?>
+                                <option value="<?= h($p['playercode']) ?>"
+                                        data-playercode="<?= h($p['playercode']) ?>"
+                                        <?= $currentSub === $p['playercode'] ? 'selected' : '' ?>>
+                                    <?= h($p['lastname']) ?> <?= h($p['firstname']) ?> (<?= h($p['playercode']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="muted">Ο αναπληρωματικός πρέπει να είναι διαφορετικός από τους 3 βασικούς.</small>
+                    </div>
+                <?php endif; ?>
+
                 <div class="mt-16">
                     <button class="btn" type="submit" data-submit-team disabled>Αποθήκευση Ομάδας</button>
                     <a class="btn btn--ghost" href="<?= h(url('club/teams.php?g=' . urlencode($game['gamecode']))) ?>">Ακύρωση</a>
@@ -350,11 +447,19 @@ render_header('Δηλώσεις — ' . $game['gamecode'], 'club', 'teams');
                 <tbody>
                 <?php foreach ($teams as $t):
                     $codes = explode('-', $t['playercodes']);
-                    $in = implode(',', array_fill(0, count($codes), '?'));
-                    $plist = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode IN ($in)", $codes);
+                    $subCodes = [];
+                    if (!empty($t['substitutes'])) {
+                        foreach (explode('-', (string)$t['substitutes']) as $sc) {
+                            if ($sc !== '') { $subCodes[] = $sc; }
+                        }
+                    }
+                    $allCodes = array_values(array_unique(array_merge($codes, $subCodes)));
+                    $in = implode(',', array_fill(0, count($allCodes), '?'));
+                    $plist = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode IN ($in)", $allCodes);
                     if (function_exists('hpf_decrypt_rows')) { $plist = hpf_decrypt_rows($plist, hpf_encrypted_cols('players')); }
-                    // Διατήρηση σειράς όπως στο playercodes
-                    usort($plist, function($a,$b) use ($codes) { return array_search($a['playercode'], $codes) <=> array_search($b['playercode'], $codes); });
+                    // Index by playercode για γρήγορο lookup
+                    $pmap = [];
+                    foreach ($plist as $pl) { $pmap[$pl['playercode']] = $pl; }
                 ?>
                     <tr>
                         <td><strong><?= h($t['teamname']) ?></strong></td>
@@ -362,8 +467,11 @@ render_header('Δηλώσεις — ' . $game['gamecode'], 'club', 'teams');
                             <?= $t['category']==='M'?'Άνδρες':($t['category']==='F'?'Γυναίκες':'Μεικτό') ?>
                         </span></td>
                         <td>
-                            <?php foreach ($plist as $pl): ?>
+                            <?php foreach ($codes as $pc): if (!isset($pmap[$pc])) continue; $pl = $pmap[$pc]; ?>
                                 <span><?= h($pl['lastname']) ?> <?= h($pl['firstname']) ?> <span class="muted">(<?= h($pl['playercode']) ?>)</span></span><br>
+                            <?php endforeach; ?>
+                            <?php foreach ($subCodes as $pc): if (!isset($pmap[$pc])) continue; $pl = $pmap[$pc]; ?>
+                                <span><em><?= h($pl['lastname']) ?> <?= h($pl['firstname']) ?></em> <span class="muted">(<?= h($pl['playercode']) ?>)</span> <span class="badge">Αναπληρωματικός</span></span><br>
                             <?php endforeach; ?>
                         </td>
                         <td class="actions">
