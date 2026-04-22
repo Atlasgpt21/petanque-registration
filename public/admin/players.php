@@ -12,14 +12,37 @@ $readonly = is_readonly_external();
 $clubcodeFilter = $_GET['club'] ?? '';
 $q = trim((string)($_GET['q'] ?? ''));
 
+// Σημ: αν το firstname/lastname είναι encrypted στη βάση (π.χ. Hostinger ΕΟΠ),
+// το LIKE δεν θα πιάσει ονόματα — μένει το match πάνω στον playercode. Το
+// sort γίνεται PHP-side μετά την αποκρυπτογράφηση.
 $sql = "SELECT p.*, c.name AS club_name FROM `{$T['players']}` p LEFT JOIN `{$T['clubs']}` c ON c.clubcode=p.clubcode WHERE 1=1";
 $params = [];
 if ($clubcodeFilter !== '') { $sql .= " AND p.clubcode=?"; $params[] = $clubcodeFilter; }
 if ($q !== '') { $sql .= " AND (p.firstname LIKE ? OR p.lastname LIKE ? OR p.playercode LIKE ?)"; $params[] = "%$q%"; $params[] = "%$q%"; $params[] = "%$q%"; }
-$sql .= " ORDER BY p.lastname, p.firstname LIMIT 500";
+$sql .= " ORDER BY p.playercode LIMIT 500";
 
 $players = db_all($pdo, $sql, $params);
-$clubs = db_all($pdo, "SELECT clubcode, name FROM `{$T['clubs']}` ORDER BY name");
+$clubs = db_all($pdo, "SELECT clubcode, name FROM `{$T['clubs']}` ORDER BY clubcode");
+if (function_exists('hpf_decrypt_rows')) {
+    $players = hpf_decrypt_rows($players, array_merge(hpf_encrypted_cols('players'), ['club_name']));
+    $clubs   = hpf_decrypt_rows($clubs, ['name']);
+    usort($players, fn($a, $b) => strcasecmp((string)($a['lastname'] ?? ''), (string)($b['lastname'] ?? '')));
+    usort($clubs, fn($a, $b) => strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? '')));
+    // Text-search fallback: αν ο χρήστης έδωσε query αλλά λόγω encryption δεν
+    // ταίριαξε τίποτα, ξαναφιλτράρουμε PHP-side πάνω στα αποκρυπτογραφημένα.
+    if ($q !== '' && empty($players)) {
+        $all = db_all($pdo, "SELECT p.*, c.name AS club_name FROM `{$T['players']}` p LEFT JOIN `{$T['clubs']}` c ON c.clubcode=p.clubcode" . ($clubcodeFilter !== '' ? " WHERE p.clubcode=?" : '') . " LIMIT 5000", $clubcodeFilter !== '' ? [$clubcodeFilter] : []);
+        $all = hpf_decrypt_rows($all, array_merge(hpf_encrypted_cols('players'), ['club_name']));
+        $needle = mb_strtolower($q);
+        $players = array_values(array_filter($all, fn($p) =>
+            str_contains(mb_strtolower((string)($p['firstname'] ?? '')), $needle) ||
+            str_contains(mb_strtolower((string)($p['lastname']  ?? '')), $needle) ||
+            str_contains(mb_strtolower((string)($p['playercode'] ?? '')), $needle)
+        ));
+        usort($players, fn($a, $b) => strcasecmp((string)($a['lastname'] ?? ''), (string)($b['lastname'] ?? '')));
+        $players = array_slice($players, 0, 500);
+    }
+}
 
 render_header('Αθλητές', 'admin', 'players');
 ?>

@@ -104,7 +104,14 @@ if ($action === 'edit' && $editId > 0 && !$edit) {
 }
 if ($action === 'new' && !$edit) { $edit = ['playerid' => 0]; }
 
-$players = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE clubcode=? ORDER BY lastname, firstname", [$club['clubcode']]);
+$players = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE clubcode=? ORDER BY playercode", [$club['clubcode']]);
+if (function_exists('hpf_decrypt_rows')) {
+    $players = hpf_decrypt_rows($players, hpf_encrypted_cols('players'));
+    usort($players, fn($a, $b) => strcasecmp((string)($a['lastname'] ?? ''), (string)($b['lastname'] ?? '')));
+}
+if (isset($edit) && $edit && !empty($edit['playerid']) && function_exists('hpf_decrypt_row')) {
+    $edit = hpf_decrypt_row($edit, hpf_encrypted_cols('players'));
+}
 
 render_header('Αθλητές — ' . $club['clubname'], 'club', 'athletes');
 ?>

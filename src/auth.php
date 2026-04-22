@@ -41,12 +41,16 @@ function login_club(PDO $pdo, array $T, string $username, string $password): boo
         return false;
     }
     session_regenerate_id(true);
+    $clubname = $club['name'] ?? '';
+    if (function_exists('hpf_decrypt')) {
+        $clubname = (string)hpf_decrypt($clubname);
+    }
     $_SESSION['user'] = [
         'role'         => 'club',
         'id'           => (int)$u['id'],
         'username'     => $u['username'],
         'clubcode'     => $u['clubcode'],
-        'clubname'     => $club['name'],
+        'clubname'     => $clubname,
         'must_change'  => (int)$u['must_change'] === 1,
     ];
     $pdo->prepare("UPDATE `{$T['club_users']}` SET last_login=NOW() WHERE id=?")->execute([$u['id']]);

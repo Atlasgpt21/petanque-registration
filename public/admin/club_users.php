@@ -68,7 +68,12 @@ if ($action === 'edit' && $editId > 0 && !$edit) { $edit = db_one($pdo, "SELECT 
 if ($action === 'new'  && !$edit) { $edit = ['id'=>0, 'active'=>1, 'must_change'=>1]; }
 
 $users = db_all($pdo, "SELECT u.*, c.name AS club_name FROM `{$T['club_users']}` u LEFT JOIN `{$T['clubs']}` c ON c.clubcode=u.clubcode ORDER BY u.username");
-$clubs = db_all($pdo, "SELECT clubcode, name FROM `{$T['clubs']}` ORDER BY name");
+$clubs = db_all($pdo, "SELECT clubcode, name FROM `{$T['clubs']}` ORDER BY clubcode");
+if (function_exists('hpf_decrypt_rows')) {
+    $users = hpf_decrypt_rows($users, ['club_name']);
+    $clubs = hpf_decrypt_rows($clubs, ['name']);
+    usort($clubs, fn($a, $b) => strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? '')));
+}
 
 render_header('Λογαριασμοί Συλλόγων', 'admin', 'club_users');
 ?>

@@ -25,8 +25,11 @@ if ($game) {
         FROM `{$T['teams']}` t
         LEFT JOIN `{$T['clubs']}` c ON c.clubcode=t.clubcode
         WHERE t.gamecode=? AND t.status='Y'
-        ORDER BY c.name, t.category, t.teamname
+        ORDER BY t.clubcode, t.category, t.teamname
     ", [$game['gamecode']]);
+    if (function_exists('hpf_decrypt_rows')) {
+        $teams = hpf_decrypt_rows($teams, ['club_name']);
+    }
 }
 
 render_header('Όλες οι Δηλώσεις', 'admin', 'all_teams');
@@ -63,6 +66,7 @@ render_header('Όλες οι Δηλώσεις', 'admin', 'all_teams');
                 $codes = explode('-', $t['playercodes']);
                 $in = implode(',', array_fill(0, count($codes), '?'));
                 $plist = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode IN ($in)", $codes);
+                if (function_exists('hpf_decrypt_rows')) { $plist = hpf_decrypt_rows($plist, hpf_encrypted_cols('players')); }
                 usort($plist, function($a,$b) use ($codes) { return array_search($a['playercode'], $codes) <=> array_search($b['playercode'], $codes); });
             ?>
                 <tr>

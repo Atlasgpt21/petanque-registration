@@ -48,4 +48,20 @@ return [
     // Όταν true: κρύβει/απενεργοποιεί τα UI που θα έγραφαν στους clubs/players
     // (τα υπάρχοντα δεδομένα διαχειρίζονται εκτός module).
     'readonly_external_data' => true,
+
+    // Κρυπτογράφηση (AES-256-CTR) που χρησιμοποιεί το υπάρχον σύστημα της ΕΟΠ
+    // σε κάποιες στήλες των clubs/sportsmen. Το module αποκρυπτογραφεί on-read
+    // πριν την προβολή. ΠΟΤΕ δεν γράφει encrypted δεδομένα σε αυτούς τους
+    // πίνακες (είναι read-only).
+    'crypto' => [
+        'enabled' => true,
+        'method'  => 'AES-256-CTR',
+        'key'     => 'helleniquepetanquefederation',
+        'iv'      => '1234567891011121',
+        // Ποιες στήλες είναι encrypted στα logical tables.
+        'columns' => [
+            'clubs'   => ['name', 'city'],
+            'players' => ['firstname', 'lastname'],
+        ],
+    ],
 ];

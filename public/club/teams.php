@@ -226,7 +226,11 @@ if ($action === 'new') {
 }
 
 // Φόρτωσε όλους τους παίκτες του συλλόγου
-$players = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE clubcode=? AND active='Y' ORDER BY lastname, firstname", [$club['clubcode']]);
+$players = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE clubcode=? AND active='Y' ORDER BY playercode", [$club['clubcode']]);
+if (function_exists('hpf_decrypt_rows')) {
+    $players = hpf_decrypt_rows($players, hpf_encrypted_cols('players'));
+    usort($players, fn($a, $b) => strcasecmp((string)($a['lastname'] ?? ''), (string)($b['lastname'] ?? '')));
+}
 
 // Λίστα δηλωμένων ομάδων
 $teams = db_all($pdo, "SELECT * FROM `{$T['teams']}` WHERE clubcode=? AND gamecode=? AND status='Y' ORDER BY category, teamname", [$club['clubcode'], $game['gamecode']]);
@@ -348,6 +352,7 @@ render_header('Δηλώσεις — ' . $game['gamecode'], 'club', 'teams');
                     $codes = explode('-', $t['playercodes']);
                     $in = implode(',', array_fill(0, count($codes), '?'));
                     $plist = db_all($pdo, "SELECT * FROM `{$T['players']}` WHERE playercode IN ($in)", $codes);
+                    if (function_exists('hpf_decrypt_rows')) { $plist = hpf_decrypt_rows($plist, hpf_encrypted_cols('players')); }
                     // Διατήρηση σειράς όπως στο playercodes
                     usort($plist, function($a,$b) use ($codes) { return array_search($a['playercode'], $codes) <=> array_search($b['playercode'], $codes); });
                 ?>

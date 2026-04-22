@@ -58,6 +58,9 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/helpers.php';
 require __DIR__ . '/auth.php';
 require __DIR__ . '/validators.php';
+if (is_file(__DIR__ . '/crypto.php')) {
+    require __DIR__ . '/crypto.php';
+}
 
 // Global
 $GLOBALS['CONFIG'] = $CONFIG;

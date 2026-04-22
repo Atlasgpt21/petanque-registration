@@ -74,10 +74,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($action === 'edit' && $editId > 0) {
     $edit = db_one($pdo, "SELECT * FROM `{$T['clubs']}` WHERE clubid=?", [$editId]);
+    if ($edit && function_exists('hpf_decrypt_row')) {
+        $edit = hpf_decrypt_row($edit, hpf_encrypted_cols('clubs'));
+    }
 }
 if ($action === 'new') { $edit = ['clubid' => 0, 'active' => 'Y']; }
 
-$clubs = db_all($pdo, "SELECT * FROM `{$T['clubs']}` ORDER BY name");
+$clubs = db_all($pdo, "SELECT * FROM `{$T['clubs']}` ORDER BY clubcode");
+if (function_exists('hpf_decrypt_rows')) {
+    $clubs = hpf_decrypt_rows($clubs, hpf_encrypted_cols('clubs'));
+    // Sort μετά την αποκρυπτογράφηση, ώστε η λίστα να βγαίνει σε αλφαβητική σειρά ονόματος.
+    usort($clubs, fn($a, $b) => strcasecmp((string)($a['name'] ?? ''), (string)($b['name'] ?? '')));
+}
 
 render_header('Σύλλογοι', 'admin', 'clubs');
 ?>
