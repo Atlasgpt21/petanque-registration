@@ -1,0 +1,33 @@
+<?php
+/**
+ * Ρυθμίσεις εφαρμογής — αντιγράψτε σε config.php και τροποποιήστε.
+ */
+
+return [
+    'db' => [
+        'host'     => '127.0.0.1',
+        'port'     => 3306,
+        'dbname'   => 'petanque',
+        'user'     => 'petanque',
+        'password' => 'petanque',
+        'charset'  => 'utf8mb4',
+    ],
+
+    // Αν τα υπάρχοντα tables σας έχουν διαφορετικά ονόματα, αλλάξτε εδώ.
+    'tables' => [
+        'games'      => 'games',
+        'games2'     => 'games2',
+        'aa'         => 'aa',
+        'teams'      => 'teams',
+        'clubs'      => 'clubs',
+        'players'    => 'players',
+        'club_users' => 'club_users',
+        'admins'     => 'admins',
+    ],
+
+    'app' => [
+        'name'         => 'Petanque Registration',
+        'timezone'     => 'Europe/Athens',
+        'session_name' => 'PETREG',
+    ],
+];
