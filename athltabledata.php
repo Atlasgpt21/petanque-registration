@@ -37,6 +37,7 @@ $statusMap2 = [
     'Y' => 'ΝΑΙ',
     'N' => 'ΟΧΙ'
 ];
+$data = [];
 
     while ($row = $result->fetch_assoc()) {
     $name = openssl_decrypt($row['name'], $ciphering, $key, $options, $iv) ?: '';
@@ -70,6 +71,7 @@ $statusMap2 = [
         }
     }
 
+    $clubcode = '';
     if($clubcode1==000000){
     $clubcode='';    
     } else {
