@@ -96,14 +96,15 @@ $data = [];
     $status = $statusMap[trim($row['activate'])] ?? '';
     $ban = $statusMap2[trim($row['ban'])] ?? '';
     
-    // Activation date (dai) in Y-m-d format
+    // Activation date (dai) in Y-m-d format (strip time if present)
     $dai = '';
     $rawDai = $row['activationdate'] ?? '';
     if (!empty($rawDai)) {
-        $daiDate = DateTime::createFromFormat('Y-m-d', $rawDai)
+        $daiDate = DateTime::createFromFormat('Y-m-d H:i:s', $rawDai)
+                ?: DateTime::createFromFormat('Y-m-d', $rawDai)
                 ?: DateTime::createFromFormat('d/m/Y', $rawDai)
                 ?: DateTime::createFromFormat('d-m-Y', $rawDai);
-        $dai = $daiDate ? $daiDate->format('Y-m-d') : $rawDai;
+        $dai = $daiDate ? $daiDate->format('Y-m-d') : substr($rawDai, 0, 10);
     }
 
     $data[] = [
