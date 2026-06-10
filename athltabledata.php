@@ -96,6 +96,16 @@ $data = [];
     $status = $statusMap[trim($row['activate'])] ?? '';
     $ban = $statusMap2[trim($row['ban'])] ?? '';
     
+    // Activation date (dai) in Y-m-d format
+    $dai = '';
+    $rawDai = $row['dai'] ?? '';
+    if (!empty($rawDai)) {
+        $daiDate = DateTime::createFromFormat('Y-m-d', $rawDai)
+                ?: DateTime::createFromFormat('d/m/Y', $rawDai)
+                ?: DateTime::createFromFormat('d-m-Y', $rawDai);
+        $dai = $daiDate ? $daiDate->format('Y-m-d') : $rawDai;
+    }
+
     $data[] = [
         'mitroo'   => $row['mitroo'] ?? '',
         'name'     => $name,
@@ -105,6 +115,7 @@ $data = [];
         'amka' =>     $amka,
         'category' =>     $category,
         'clubcode' => $clubcode,
+        'dai'      => $dai,
         'aaid'     => $row['aaid'] ?? ''
     ];
 }
