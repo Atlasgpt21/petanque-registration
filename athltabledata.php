@@ -98,7 +98,7 @@ $data = [];
     
     // Activation date (dai) in Y-m-d format
     $dai = '';
-    $rawDai = $row['dai'] ?? '';
+    $rawDai = $row['activationdate'] ?? '';
     if (!empty($rawDai)) {
         $daiDate = DateTime::createFromFormat('Y-m-d', $rawDai)
                 ?: DateTime::createFromFormat('d/m/Y', $rawDai)
