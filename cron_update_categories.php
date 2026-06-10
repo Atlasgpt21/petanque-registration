@@ -74,9 +74,18 @@ while ($row = $result->fetch_assoc()) {
         continue;
     }
 
-    $birthDate = DateTime::createFromFormat('d/m/Y', $birthday1)
-              ?: DateTime::createFromFormat('Y-m-d', $birthday1)
-              ?: DateTime::createFromFormat('d-m-Y', $birthday1);
+    $birthDate = DateTime::createFromFormat('d/m/Y', $birthday1);
+    // Handle 2-digit years (e.g. 23/02/03 parsed as year 0003)
+    if ($birthDate && (int)$birthDate->format('Y') < 100) {
+        $birthDate = DateTime::createFromFormat('d/m/y', $birthday1);
+        if ($birthDate && $birthDate > $today) {
+            $birthDate->modify('-100 years');
+        }
+    }
+    if (!$birthDate) {
+        $birthDate = DateTime::createFromFormat('Y-m-d', $birthday1)
+                  ?: DateTime::createFromFormat('d-m-Y', $birthday1);
+    }
 
     if (!$birthDate) {
         $skipped++;
