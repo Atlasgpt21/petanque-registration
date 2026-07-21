@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `id`             INT(11)      NOT NULL AUTO_INCREMENT,
   `name`           VARCHAR(255) NOT NULL,
   `gamecode`       VARCHAR(64)  NOT NULL,               -- link στο championship (games.gamecode)
+  `category`       VARCHAR(8)   NOT NULL DEFAULT 'ALL', -- ALL | M | F | MIX (φύλο/κατηγορία ταμπλό)
   `format`         VARCHAR(16)  NOT NULL DEFAULT 'swiss',
   `status`         VARCHAR(16)  NOT NULL DEFAULT 'setup', -- setup | running | finished
   `rounds_planned` INT(11)      NULL,                    -- προγραμματισμένοι γύροι Ελβετικού (προαιρετικό)
@@ -31,6 +32,9 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `loss_points`    INT(11)      NOT NULL DEFAULT 0,      -- βαθμοί ανά ήττα
   `bye_score_for`  INT(11)      NOT NULL DEFAULT 13,     -- πόντοι υπέρ σε ρεπό (bye)
   `bye_score_against` INT(11)   NOT NULL DEFAULT 7,      -- πόντοι κατά σε ρεπό (bye)
+  `courts`         INT(11)      NOT NULL DEFAULT 0,      -- πλήθος γηπέδων (0 = χωρίς όριο)
+  `ko_size`        INT(11)      NOT NULL DEFAULT 0,      -- knockout κυρίως ταμπλό: 0 | 8 | 16
+  `friendship_cup` TINYINT(1)   NOT NULL DEFAULT 0,      -- Κύπελλο Φιλίας (θέσεις 17–32)
   `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_gamecode` (`gamecode`)
@@ -60,6 +64,8 @@ CREATE TABLE IF NOT EXISTS `app_tournament_rounds` (
   `id`            INT(11)     NOT NULL AUTO_INCREMENT,
   `tournament_id` INT(11)     NOT NULL,
   `round_no`      INT(11)     NOT NULL,
+  `phase`         VARCHAR(16) NOT NULL DEFAULT 'swiss',  -- swiss | ko | friendship
+  `stage`         VARCHAR(24) NULL,                      -- π.χ. R16 | QF | SF | F (για knockout)
   `status`        VARCHAR(16) NOT NULL DEFAULT 'paired', -- paired | completed
   `created_at`    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -74,9 +80,12 @@ CREATE TABLE IF NOT EXISTS `app_tournament_matches` (
   `id`            INT(11)     NOT NULL AUTO_INCREMENT,
   `tournament_id` INT(11)     NOT NULL,
   `round_no`      INT(11)     NOT NULL,
-  `board_no`      INT(11)     NOT NULL,                 -- αριθμός τραπεζιού/πίστας
-  `home_team_id`  INT(11)     NOT NULL,
-  `away_team_id`  INT(11)     NULL,                     -- NULL όταν is_bye=1
+  `board_no`      INT(11)     NOT NULL,                 -- σειρά αγώνα στον γύρο
+  `court_no`      INT(11)     NULL,                     -- ανατεθειμένο γήπεδο/πίστα
+  `phase`         VARCHAR(16) NOT NULL DEFAULT 'swiss', -- swiss | ko | friendship
+  `stage`         VARCHAR(24) NULL,                     -- π.χ. R16 | QF | SF | F
+  `home_team_id`  INT(11)     NULL,
+  `away_team_id`  INT(11)     NULL,                     -- NULL όταν is_bye=1 ή TBD
   `home_score`    INT(11)     NULL,
   `away_score`    INT(11)     NULL,
   `status`        VARCHAR(16) NOT NULL DEFAULT 'pending', -- pending | played

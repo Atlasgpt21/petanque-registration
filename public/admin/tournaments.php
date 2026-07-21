@@ -19,9 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($name === '' || $gamecode === '') {
             flash_set('error', 'Απαιτούνται όνομα και πρωτάθλημα.');
         } else {
-            $nid = tour_create($pdo, $name, $gamecode);
+            $g = db_one($pdo, "SELECT gametype FROM `{$T['games']}` WHERE gamecode=?", [$gamecode]);
+            $gametype = (string)($g['gametype'] ?? 'Doubles');
+            $ids = tour_create_for_game($pdo, $name, $gamecode, $gametype);
+            if (count($ids) > 1) {
+                flash_set('success', 'Δημιουργήθηκαν 2 ξεχωριστά ταμπλό: Άνδρες & Γυναίκες.');
+                redirect(url('admin/tournaments.php'));
+            }
             flash_set('success', 'Η διοργάνωση δημιουργήθηκε.');
-            redirect(url('admin/tournament_view.php?id=' . $nid));
+            redirect(url('admin/tournament_view.php?id=' . $ids[0]));
         }
     }
 
@@ -33,11 +39,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $tours = tour_all($pdo);
-$games = db_all($pdo, "SELECT gamecode, name, status FROM `{$T['games']}` ORDER BY gameid DESC");
+$games = db_all($pdo, "SELECT gamecode, name, gametype, status FROM `{$T['games']}` ORDER BY gameid DESC");
 
-// map gamecode => game name για εμφάνιση
+// map gamecode => game info για εμφάνιση
 $gameName = [];
-foreach ($games as $g) { $gameName[$g['gamecode']] = $g['name']; }
+$gameType = [];
+foreach ($games as $g) { $gameName[$g['gamecode']] = $g['name']; $gameType[$g['gamecode']] = $g['gametype']; }
 
 render_header('Διοργανώσεις', 'admin', 'tournaments');
 ?>
@@ -50,19 +57,20 @@ render_header('Διοργανώσεις', 'admin', 'tournaments');
 
 <div class="card">
     <h3 class="card__title">Νέα Διοργάνωση</h3>
+    <p class="card__subtitle">Αν το είδος είναι <strong>Μικτό (Mixed)</strong> δημιουργείται ένα ενιαίο ταμπλό. Σε <strong>Διπλέτες/Τριπλέτες</strong> δημιουργούνται αυτόματα <strong>2 ξεχωριστά ταμπλό</strong> (Άνδρες &amp; Γυναίκες) που τρέχουν παράλληλα.</p>
     <form method="post" class="row">
         <?= csrf_field() ?>
         <input type="hidden" name="op" value="create">
         <div class="field" style="flex:2">
             <label class="field__label">Όνομα *</label>
-            <input class="input" type="text" name="name" placeholder="π.χ. Πανελλήνιο 2vs2 — Τελική Φάση" required>
+            <input class="input" type="text" name="name" placeholder="π.χ. Πανελλήνιο 3vs3 2026" required>
         </div>
         <div class="field" style="flex:2">
             <label class="field__label">Πρωτάθλημα (πηγή ομάδων) *</label>
             <select class="select" name="gamecode" required>
                 <option value="">— επιλέξτε —</option>
-                <?php foreach ($games as $g): ?>
-                    <option value="<?= h($g['gamecode']) ?>"><?= h($g['gamecode']) ?> — <?= h($g['name']) ?><?= $g['status']==='Y'?' ✓':'' ?></option>
+                <?php foreach ($games as $g): $tlabel = $g['gametype']==='Mixed'?'Μικτό':($g['gametype']==='Triplets'?'Τριπλέτες':($g['gametype']==='Doubles'?'Διπλέτες':$g['gametype'])); ?>
+                    <option value="<?= h($g['gamecode']) ?>"><?= h($g['gamecode']) ?> — <?= h($g['name']) ?> [<?= h($tlabel) ?>]<?= $g['status']==='Y'?' ✓':'' ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -77,12 +85,13 @@ render_header('Διοργανώσεις', 'admin', 'tournaments');
         <p class="muted">Δεν υπάρχουν διοργανώσεις ακόμη.</p>
     <?php else: ?>
     <table class="table">
-        <thead><tr><th>#</th><th>Όνομα</th><th>Πρωτάθλημα</th><th>Ομάδες</th><th>Γύροι</th><th>Κατάσταση</th><th class="actions"></th></tr></thead>
+        <thead><tr><th>#</th><th>Όνομα</th><th>Ταμπλό</th><th>Πρωτάθλημα</th><th>Ομάδες</th><th>Γύροι</th><th>Κατάσταση</th><th class="actions"></th></tr></thead>
         <tbody>
-        <?php foreach ($tours as $t): ?>
+        <?php foreach ($tours as $t): $cat = (string)($t['category'] ?? 'ALL'); $catLabel = tour_category_label($cat); ?>
             <tr>
                 <td><?= (int)$t['id'] ?></td>
                 <td><strong><?= h($t['name']) ?></strong></td>
+                <td><?php if ($catLabel !== ''): ?><span class="badge badge--<?= h($cat) ?>"><?= h($catLabel) ?></span><?php else: ?><span class="muted">—</span><?php endif; ?></td>
                 <td><code><?= h($t['gamecode']) ?></code><br><span class="muted"><?= h($gameName[$t['gamecode']] ?? '—') ?></span></td>
                 <td><?= (int)$t['team_count'] ?></td>
                 <td><?= (int)$t['round_count'] ?></td>

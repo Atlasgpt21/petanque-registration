@@ -31,15 +31,18 @@ function render_header(string $title, string $role, string $active = ''): void
     $links = $role === 'admin' ? $adminLinks : $clubLinks;
 
     $cssHref = url('assets/style.css');
+    $bsHref  = url('assets/vendor/bootstrap/bootstrap.min.css');
     $jsHref  = url('assets/app.js');
     $logoutHref = url('logout.php');
 
     echo '<!doctype html>';
     echo '<html lang="el"><head><meta charset="utf-8"><title>' . h($title) . '</title>';
     echo '<meta name="viewport" content="width=device-width,initial-scale=1">';
+    echo '<link rel="stylesheet" href="' . h($bsHref) . '">';
     echo '<link rel="stylesheet" href="' . h($cssHref) . '"></head><body>';
+    echo '<button class="topbar-toggle btn btn--ghost btn--sm d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#appSidebar" aria-controls="appSidebar">☰ Μενού</button>';
     echo '<div class="app">';
-    echo '<aside class="sidebar">';
+    echo '<aside class="sidebar offcanvas-md offcanvas-start" tabindex="-1" id="appSidebar">';
     echo '<div class="sidebar__brand">';
     echo '<h1 class="sidebar__title">' . h($brandTitle) . '</h1>';
     echo '<p class="sidebar__subtitle">' . h($brandSub) . '</p>';
@@ -62,7 +65,9 @@ function render_header(string $title, string $role, string $active = ''): void
 function render_footer(): void
 {
     $jsHref  = url('assets/app.js');
+    $bsJs    = url('assets/vendor/bootstrap/bootstrap.bundle.min.js');
     echo '</main></div>';
+    echo '<script src="' . h($bsJs) . '"></script>';
     echo '<script src="' . h($jsHref) . '"></script>';
     echo '</body></html>';
 }

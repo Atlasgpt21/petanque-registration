@@ -208,10 +208,21 @@ a:hover { text-decoration: underline; }
 .grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 780px) {
+@media (max-width: 767.98px) {
   .grid--2, .grid--3, .grid--4 { grid-template-columns: 1fr; }
   .app { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
+}
+
+/* Mobile menu toggle (Bootstrap offcanvas handles the sidebar < md). */
+.topbar-toggle {
+  position: sticky;
+  top: 0;
+  z-index: 1035;
+  margin: 10px;
+}
+.sidebar.offcanvas-md { color: #e8e2d8; }
+@media (max-width: 767.98px) {
+  .sidebar.offcanvas-md { width: 260px; }
 }
 
 .stat {

@@ -257,6 +257,7 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `id`             INT(11)      NOT NULL AUTO_INCREMENT,
   `name`           VARCHAR(255) NOT NULL,
   `gamecode`       VARCHAR(64)  NOT NULL,
+  `category`       VARCHAR(8)   NOT NULL DEFAULT 'ALL',
   `format`         VARCHAR(16)  NOT NULL DEFAULT 'swiss',
   `status`         VARCHAR(16)  NOT NULL DEFAULT 'setup',
   `rounds_planned` INT(11)      NULL,
@@ -265,6 +266,9 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `loss_points`    INT(11)      NOT NULL DEFAULT 0,
   `bye_score_for`  INT(11)      NOT NULL DEFAULT 13,
   `bye_score_against` INT(11)   NOT NULL DEFAULT 7,
+  `courts`         INT(11)      NOT NULL DEFAULT 0,
+  `ko_size`        INT(11)      NOT NULL DEFAULT 0,
+  `friendship_cup` TINYINT(1)   NOT NULL DEFAULT 0,
   `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_gamecode` (`gamecode`)
@@ -288,6 +292,8 @@ CREATE TABLE IF NOT EXISTS `app_tournament_rounds` (
   `id`            INT(11)     NOT NULL AUTO_INCREMENT,
   `tournament_id` INT(11)     NOT NULL,
   `round_no`      INT(11)     NOT NULL,
+  `phase`         VARCHAR(16) NOT NULL DEFAULT 'swiss',
+  `stage`         VARCHAR(24) NULL,
   `status`        VARCHAR(16) NOT NULL DEFAULT 'paired',
   `created_at`    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -300,7 +306,10 @@ CREATE TABLE IF NOT EXISTS `app_tournament_matches` (
   `tournament_id` INT(11)     NOT NULL,
   `round_no`      INT(11)     NOT NULL,
   `board_no`      INT(11)     NOT NULL,
-  `home_team_id`  INT(11)     NOT NULL,
+  `court_no`      INT(11)     NULL,
+  `phase`         VARCHAR(16) NOT NULL DEFAULT 'swiss',
+  `stage`         VARCHAR(24) NULL,
+  `home_team_id`  INT(11)     NULL,
   `away_team_id`  INT(11)     NULL,
   `home_score`    INT(11)     NULL,
   `away_score`    INT(11)     NULL,
@@ -312,6 +321,27 @@ CREATE TABLE IF NOT EXISTS `app_tournament_matches` (
   KEY `idx_home` (`home_team_id`),
   KEY `idx_away` (`away_team_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ----------------------------------------------------------------------------
+-- ΑΝΑΒΑΘΜΙΣΗ υπάρχουσας εγκατάστασης (αν οι πίνακες app_tournament* υπάρχουν
+-- ΗΔΗ από παλαιότερη έκδοση χωρίς τις νέες στήλες). Ασφαλές να τρέξει πολλές
+-- φορές σε MariaDB (Hostinger) — τα IF NOT EXISTS αγνοούν ό,τι υπάρχει ήδη.
+-- ----------------------------------------------------------------------------
+ALTER TABLE `app_tournaments`
+  ADD COLUMN IF NOT EXISTS `category`       VARCHAR(8)  NOT NULL DEFAULT 'ALL' AFTER `gamecode`,
+  ADD COLUMN IF NOT EXISTS `courts`         INT(11)     NOT NULL DEFAULT 0 AFTER `bye_score_against`,
+  ADD COLUMN IF NOT EXISTS `ko_size`        INT(11)     NOT NULL DEFAULT 0 AFTER `courts`,
+  ADD COLUMN IF NOT EXISTS `friendship_cup` TINYINT(1)  NOT NULL DEFAULT 0 AFTER `ko_size`;
+
+ALTER TABLE `app_tournament_rounds`
+  ADD COLUMN IF NOT EXISTS `phase` VARCHAR(16) NOT NULL DEFAULT 'swiss' AFTER `round_no`,
+  ADD COLUMN IF NOT EXISTS `stage` VARCHAR(24) NULL AFTER `phase`;
+
+ALTER TABLE `app_tournament_matches`
+  ADD COLUMN IF NOT EXISTS `court_no` INT(11)     NULL AFTER `board_no`,
+  ADD COLUMN IF NOT EXISTS `phase`    VARCHAR(16) NOT NULL DEFAULT 'swiss' AFTER `court_no`,
+  ADD COLUMN IF NOT EXISTS `stage`    VARCHAR(24) NULL AFTER `phase`,
+  MODIFY COLUMN `home_team_id` INT(11) NULL;
 
 -- ============================================================================
 -- ΠΡΟΑΙΡΕΤΙΚΟ: λογαριασμοί συλλόγων (βγάλε τα σχόλια αν τους θες).

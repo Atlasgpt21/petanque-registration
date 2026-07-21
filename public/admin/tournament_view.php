@@ -32,14 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('success', 'Ενημερώθηκε η συμμετοχή της ομάδας.');
         } elseif ($op === 'generate_round') {
             $rn = tour_generate_round($pdo, $id);
-            flash_set('success', "Δημιουργήθηκε ο γύρος $rn.");
-        } elseif ($op === 'save_results') {
-            $roundNo = (int)($_POST['round_no'] ?? 0);
-            $results = [];
-            foreach (($_POST['home'] ?? []) as $mid => $v) { $results[(int)$mid]['home'] = $v; }
-            foreach (($_POST['away'] ?? []) as $mid => $v) { $results[(int)$mid]['away'] = $v; }
-            tour_save_results($pdo, $id, $roundNo, $results);
-            flash_set('success', "Αποθηκεύτηκαν τα αποτελέσματα του γύρου $roundNo.");
+            flash_set('success', "Δημιουργήθηκε ο γύρος $rn. Ανοίγουν τα φύλλα αγώνα για εκτύπωση.");
+            redirect(url('admin/tournament_view.php?id=' . $id . '&print=' . $rn));
+        } elseif ($op === 'generate_ko') {
+            $phase = ($_POST['phase'] ?? '') === 'friendship' ? 'friendship' : 'ko';
+            $rn = tour_generate_ko($pdo, $id, $phase);
+            flash_set('success', "Κληρώθηκε νέο στάδιο (γύρος $rn). Ανοίγουν τα φύλλα αγώνα.");
+            redirect(url('admin/tournament_view.php?id=' . $id . '&print=' . $rn));
         } elseif ($op === 'delete_last_round') {
             tour_delete_last_round($pdo, $id);
             flash_set('success', 'Ο τελευταίος γύρος διαγράφηκε.');
@@ -62,23 +61,56 @@ $standings = tour_standings($pdo, $id);
 $labels    = tour_team_labels($pdo, $id);
 $game      = db_one($pdo, "SELECT * FROM `{$T['games']}` WHERE gamecode=?", [$tour['gamecode']]);
 
+$cat      = (string)($tour['category'] ?? 'ALL');
+$catLabel = tour_category_label($cat);
+
+$swissRounds  = tour_rounds_phase($pdo, $id, 'swiss');
+$koRounds     = tour_rounds_phase($pdo, $id, 'ko');
+$friendRounds = tour_rounds_phase($pdo, $id, 'friendship');
+
 $hasRounds = $rounds !== [];
-$lastRound = 0;
-$lastCompleted = true;
-foreach ($rounds as $r) {
-    if ((int)$r['round_no'] >= $lastRound) {
-        $lastRound = (int)$r['round_no'];
-        $lastCompleted = $r['status'] === 'completed';
-    }
-}
+$lastRound = tour_last_round_no($pdo, $id);
 $activeCount = 0;
 foreach ($teams as $t) { if ((int)$t['withdrawn'] === 0) { $activeCount++; } }
+
+// Κατάσταση φάσεων.
+$swissComplete = $swissRounds !== [];
+foreach ($swissRounds as $r) { if ($r['status'] !== 'completed') { $swissComplete = false; } }
+$lastSwissCompleted = true;
+$lastSwissNo = 0;
+foreach ($swissRounds as $r) { $lastSwissNo = max($lastSwissNo, (int)$r['round_no']); }
+foreach ($swissRounds as $r) { if ((int)$r['round_no'] === $lastSwissNo) { $lastSwissCompleted = $r['status'] === 'completed'; } }
+
+$koStarted = $koRounds !== [];
+$koDone = false; $koLastCompleted = true;
+if ($koStarted) {
+    $lastKoNo = 0; foreach ($koRounds as $r) { $lastKoNo = max($lastKoNo, (int)$r['round_no']); }
+    foreach ($koRounds as $r) { if ((int)$r['round_no'] === $lastKoNo) { $koLastCompleted = $r['status'] === 'completed'; } }
+    foreach (tour_matches($pdo, $id, $lastKoNo) as $m) { if (($m['stage'] ?? '') === 'Τελικός') { $koDone = true; } }
+}
+$frStarted = $friendRounds !== [];
+$frDone = false; $frLastCompleted = true;
+if ($frStarted) {
+    $lastFrNo = 0; foreach ($friendRounds as $r) { $lastFrNo = max($lastFrNo, (int)$r['round_no']); }
+    foreach ($friendRounds as $r) { if ((int)$r['round_no'] === $lastFrNo) { $frLastCompleted = $r['status'] === 'completed'; } }
+    foreach (tour_matches($pdo, $id, $lastFrNo) as $m) { if (($m['stage'] ?? '') === 'Τελικός') { $frDone = true; } }
+}
+
+$canSwiss = $activeCount >= 2 && !$koStarted && !$frStarted && $lastSwissCompleted && $tour['status'] !== 'finished';
+$koSize   = (int)($tour['ko_size'] ?? 0);
+$courts   = (int)($tour['courts'] ?? 0);
+
+$sheetsUrl = static fn (int $r): string => url('admin/tournament_match_sheets.php?id=' . $id . '&round=' . $r);
+$printNow  = isset($_GET['print']) ? (int)$_GET['print'] : 0;
 
 render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
 ?>
 <div class="main__header">
     <div>
-        <h2 class="main__title"><?= h($tour['name']) ?></h2>
+        <h2 class="main__title">
+            <?= h($tour['name']) ?>
+            <?php if ($catLabel !== ''): ?><span class="badge badge--<?= h($cat) ?>" style="vertical-align:middle;"><?= h($catLabel) ?></span><?php endif; ?>
+        </h2>
         <p class="main__sub">
             Ελβετικό Σύστημα · Πρωτάθλημα <code><?= h($tour['gamecode']) ?></code>
             <?= $game ? '— ' . h($game['name']) : '' ?>
@@ -87,17 +119,20 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
             </span>
         </p>
     </div>
-    <div>
+    <div class="d-flex flex-wrap gap-2 align-items-start">
         <a class="btn btn--ghost btn--sm" href="<?= h(url('admin/tournaments.php')) ?>">← Πίσω</a>
-        <a class="btn btn--ghost btn--sm" href="<?= h(url('admin/tournament_print.php?id=' . $id)) ?>" target="_blank">Εκτύπωση</a>
+        <a class="btn btn--ghost btn--sm" href="<?= h(url('admin/tournament_settings.php?id=' . $id)) ?>">⚙ Ρυθμίσεις</a>
+        <a class="btn btn--accent btn--sm" href="<?= h(url('admin/tournament_secretariat.php?id=' . $id)) ?>">📝 Γραμματεία</a>
+        <a class="btn btn--ghost btn--sm" href="<?= h(url('admin/tournament_print.php?id=' . $id)) ?>" target="_blank">🖨 Εκτύπωση</a>
+        <a class="btn btn--ghost btn--sm" href="<?= h(url('results.php?t=' . $id)) ?>" target="_blank">🌐 Live</a>
     </div>
 </div>
 
 <div class="grid grid--4">
     <div class="stat"><div class="stat__label">Ομάδες</div><div class="stat__value"><?= count($teams) ?></div></div>
     <div class="stat"><div class="stat__label">Ενεργές</div><div class="stat__value"><?= $activeCount ?></div></div>
+    <div class="stat"><div class="stat__label">Γήπεδα</div><div class="stat__value"><?= $courts > 0 ? $courts : '∞' ?></div></div>
     <div class="stat"><div class="stat__label">Γύροι</div><div class="stat__value"><?= count($rounds) ?></div></div>
-    <div class="stat"><div class="stat__label">Τρέχων γύρος</div><div class="stat__value"><?= $lastRound ?: '—' ?></div></div>
 </div>
 
 <!-- Ομάδες / Import -->
@@ -107,12 +142,13 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
         <form method="post" style="display:inline">
             <?= csrf_field() ?>
             <input type="hidden" name="op" value="import">
-            <button class="btn btn--sm btn--accent" type="submit">↻ Λήψη ομάδων από το πρωτάθλημα</button>
+            <button class="btn btn--sm btn--accent" type="submit">↻ Λήψη ομάδων από το πρωτάθλημα<?= $catLabel !== '' ? ' (' . h($catLabel) . ')' : '' ?></button>
         </form>
     </div>
     <?php if (!$teams): ?>
-        <p class="muted">Καμία ομάδα. Πατήστε «Λήψη ομάδων» για αυτόματη εισαγωγή των δηλωμένων ομάδων του πρωταθλήματος <code><?= h($tour['gamecode']) ?></code>.</p>
+        <p class="muted">Καμία ομάδα. Πατήστε «Λήψη ομάδων» για αυτόματη εισαγωγή των δηλωμένων ομάδων<?= $catLabel !== '' ? ' κατηγορίας «' . h($catLabel) . '»' : '' ?> του πρωταθλήματος <code><?= h($tour['gamecode']) ?></code>.</p>
     <?php else: ?>
+        <div class="table-responsive">
         <table class="table">
             <thead><tr><th>Seed</th><th>Ομάδα</th><th>Σύλλογος</th><th>Κατάσταση</th><th class="actions"></th></tr></thead>
             <tbody>
@@ -149,16 +185,87 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
         <?php if ($hasRounds): ?><p class="field__hint mt-8">Η αφαίρεση ομάδων απενεργοποιείται μόλις ξεκινήσουν οι γύροι — χρησιμοποιήστε «Αποχώρηση».</p><?php endif; ?>
+    <?php endif; ?>
+</div>
+
+<!-- Φάσεις / Κληρώσεις -->
+<div class="card">
+    <h3 class="card__title">Φάσεις &amp; Κληρώσεις</h3>
+
+    <h4 class="mt-0" style="font-size:14px;">1η φάση — Ελβετικό</h4>
+    <form method="post" style="display:inline">
+        <?= csrf_field() ?>
+        <input type="hidden" name="op" value="generate_round">
+        <button class="btn" type="submit" <?= $canSwiss ? '' : 'disabled' ?>>
+            + Κλήρωση <?= $swissRounds ? 'επόμενου γύρου (' . ($lastSwissNo + 1) . ')' : '1ου γύρου' ?>
+        </button>
+    </form>
+    <?php if ($hasRounds && $tour['status'] !== 'finished'): ?>
+        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή τελευταίου γύρου (<?= $lastRound ?>);');">
+            <?= csrf_field() ?>
+            <input type="hidden" name="op" value="delete_last_round">
+            <button class="btn btn--ghost" type="submit">Διαγραφή γύρου <?= $lastRound ?></button>
+        </form>
+    <?php endif; ?>
+    <?php if ($swissRounds && !$lastSwissCompleted): ?>
+        <p class="field__hint mt-8">Καταχωρήστε όλα τα αποτελέσματα του γύρου <?= $lastSwissNo ?> (<a href="<?= h(url('admin/tournament_secretariat.php?id=' . $id)) ?>">Γραμματεία</a>) για να κληρωθεί ο επόμενος.</p>
+    <?php endif; ?>
+
+    <?php if ($koSize >= 2 || (int)($tour['friendship_cup'] ?? 0) === 1): ?>
+    <hr>
+    <h4 style="font-size:14px;">2η φάση — Knockout</h4>
+    <?php if (!$swissComplete): ?>
+        <p class="field__hint">Ολοκληρώστε πρώτα όλους τους γύρους της 1ης φάσης για να ξεκινήσει η knockout.</p>
+    <?php endif; ?>
+    <div class="d-flex flex-wrap gap-2">
+    <?php if ($koSize >= 2): ?>
+        <form method="post" style="display:inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="op" value="generate_ko">
+            <input type="hidden" name="phase" value="ko">
+            <?php $koLabel = !$koStarted ? "Έναρξη knockout (TOP-$koSize)" : ($koDone ? 'Ολοκληρώθηκε το ταμπλό' : 'Επόμενο στάδιο knockout'); ?>
+            <button class="btn btn--accent" type="submit" <?= (!$swissComplete || $koDone || ($koStarted && !$koLastCompleted)) ? 'disabled' : '' ?>>🏆 <?= h($koLabel) ?></button>
+        </form>
+    <?php endif; ?>
+    <?php if ((int)($tour['friendship_cup'] ?? 0) === 1): ?>
+        <form method="post" style="display:inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="op" value="generate_ko">
+            <input type="hidden" name="phase" value="friendship">
+            <?php $frLabel = !$frStarted ? 'Έναρξη Κυπέλλου Φιλίας (17–32)' : ($frDone ? 'Ολοκληρώθηκε το Κύπελλο' : 'Επόμενο στάδιο Κυπέλλου'); ?>
+            <button class="btn btn--ghost" type="submit" <?= (!$swissComplete || $frDone || ($frStarted && !$frLastCompleted)) ? 'disabled' : '' ?>>🤝 <?= h($frLabel) ?></button>
+        </form>
+    <?php endif; ?>
+    </div>
+    <?php endif; ?>
+
+    <hr>
+    <?php if ($hasRounds): ?>
+        <?php if ($tour['status'] !== 'finished'): ?>
+            <form method="post" style="display:inline">
+                <?= csrf_field() ?>
+                <input type="hidden" name="op" value="finish">
+                <button class="btn btn--ghost btn--sm" type="submit">Ολοκλήρωση διοργάνωσης</button>
+            </form>
+        <?php else: ?>
+            <form method="post" style="display:inline">
+                <?= csrf_field() ?>
+                <input type="hidden" name="op" value="reopen">
+                <button class="btn btn--ghost btn--sm" type="submit">Άνοιγμα ξανά</button>
+            </form>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
 
 <!-- Κατάταξη -->
 <div class="card">
-    <h3 class="card__title">Κατάταξη</h3>
+    <h3 class="card__title">Κατάταξη 1ης φάσης</h3>
     <?php if (!$standings): ?>
         <p class="muted">—</p>
     <?php else: ?>
+    <div class="table-responsive">
     <table class="table">
         <thead><tr>
             <th>#</th><th>Ομάδα</th>
@@ -190,107 +297,65 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
         <?php endforeach; ?>
         </tbody>
     </table>
+    </div>
     <p class="field__hint mt-8">Ισοβαθμία: Βαθμοί → Buchholz → Fine Buchholz → Διαφορά πόντων.</p>
     <?php endif; ?>
 </div>
 
-<!-- Ενέργειες γύρων -->
+<!-- Ζευγάρια ανά γύρο (νεότερος πρώτος) -->
+<?php foreach (array_reverse($rounds) as $r): $rn = (int)$r['round_no']; $matches = tour_matches($pdo, $id, $rn);
+    $phase = $r['phase'] ?? 'swiss';
+    $stage = (string)($r['stage'] ?? '');
+    $title = $phase === 'swiss' ? "Γύρος $rn" : (($phase === 'friendship' ? 'Κύπελλο Φιλίας' : 'Knockout') . ($stage !== '' ? ' — ' . $stage : ''));
+?>
 <div class="card">
-    <h3 class="card__title">Γύροι</h3>
-    <?php
-        $canGenerate = $activeCount >= 2 && (!$hasRounds || $lastCompleted) && $tour['status'] !== 'finished';
-    ?>
-    <form method="post" style="display:inline">
-        <?= csrf_field() ?>
-        <input type="hidden" name="op" value="generate_round">
-        <button class="btn" type="submit" <?= $canGenerate ? '' : 'disabled' ?>>
-            + Κλήρωση <?= $hasRounds ? 'επόμενου γύρου (' . ($lastRound + 1) . ')' : '1ου γύρου' ?>
-        </button>
-    </form>
-    <?php if ($hasRounds && $tour['status'] !== 'finished'): ?>
-        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή τελευταίου γύρου (<?= $lastRound ?>);');">
-            <?= csrf_field() ?>
-            <input type="hidden" name="op" value="delete_last_round">
-            <button class="btn btn--ghost" type="submit">Διαγραφή γύρου <?= $lastRound ?></button>
-        </form>
-    <?php endif; ?>
-    <?php if ($hasRounds): ?>
-        <?php if ($tour['status'] !== 'finished'): ?>
-            <form method="post" style="display:inline">
-                <?= csrf_field() ?>
-                <input type="hidden" name="op" value="finish">
-                <button class="btn btn--ghost" type="submit" <?= $lastCompleted ? '' : 'disabled' ?>>Ολοκλήρωση διοργάνωσης</button>
-            </form>
-        <?php else: ?>
-            <form method="post" style="display:inline">
-                <?= csrf_field() ?>
-                <input type="hidden" name="op" value="reopen">
-                <button class="btn btn--ghost" type="submit">Άνοιγμα ξανά</button>
-            </form>
-        <?php endif; ?>
-    <?php endif; ?>
-    <?php if (!$canGenerate && $activeCount >= 2 && $hasRounds && !$lastCompleted): ?>
-        <p class="field__hint mt-8">Καταχωρήστε όλα τα αποτελέσματα του γύρου <?= $lastRound ?> για να κληρωθεί ο επόμενος.</p>
-    <?php endif; ?>
-</div>
-
-<!-- Αγώνες ανά γύρο (νεότερος πρώτος) -->
-<?php foreach (array_reverse($rounds) as $r): $rn = (int)$r['round_no']; $matches = tour_matches($pdo, $id, $rn); ?>
-<div class="card">
-    <h3 class="card__title">
-        Γύρος <?= $rn ?>
-        <span class="badge <?= $r['status']==='completed'?'badge--on':'' ?>" style="margin-left:.5rem;">
-            <?= $r['status']==='completed' ? 'Ολοκληρώθηκε' : 'Σε εξέλιξη' ?>
-        </span>
-    </h3>
-    <form method="post">
-        <?= csrf_field() ?>
-        <input type="hidden" name="op" value="save_results">
-        <input type="hidden" name="round_no" value="<?= $rn ?>">
-        <table class="table">
-            <thead><tr><th>Πίστα</th><th class="right">Γηπεδούχος</th><th class="tc">Σκορ</th><th>Φιλοξενούμενος</th><th class="tc">Αποτ.</th></tr></thead>
-            <tbody>
-            <?php foreach ($matches as $m):
-                $mid = (int)$m['id'];
-                $homeLabel = $labels[(int)$m['home_team_id']] ?? ('#' . (int)$m['home_team_id']);
-                if ((int)$m['is_bye'] === 1): ?>
-                    <tr>
-                        <td><?= (int)$m['board_no'] ?></td>
-                        <td class="right"><strong><?= h($homeLabel) ?></strong></td>
-                        <td class="tc" colspan="2"><span class="badge badge--on">ΡΕΠΟ (νίκη <?= (int)$m['home_score'] ?>:<?= (int)$m['away_score'] ?>)</span></td>
-                        <td class="tc">✓</td>
-                    </tr>
-                <?php else:
-                    $awayLabel = $labels[(int)$m['away_team_id']] ?? ('#' . (int)$m['away_team_id']);
-                    $hs = $m['home_score']; $as = $m['away_score'];
-                    $res = '—';
-                    if ($m['status'] === 'played') {
-                        $res = ((int)$hs > (int)$as) ? '◄' : (((int)$hs < (int)$as) ? '►' : '=');
-                    }
-                    $locked = $tour['status'] === 'finished';
-                ?>
-                    <tr>
-                        <td><?= (int)$m['board_no'] ?></td>
-                        <td class="right"><strong><?= h($homeLabel) ?></strong></td>
-                        <td class="tc nowrap">
-                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="99"
-                                   name="home[<?= $mid ?>]" value="<?= $hs === null ? '' : (int)$hs ?>" <?= $locked ? 'disabled' : '' ?>>
-                            :
-                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="99"
-                                   name="away[<?= $mid ?>]" value="<?= $as === null ? '' : (int)$as ?>" <?= $locked ? 'disabled' : '' ?>>
-                        </td>
-                        <td><strong><?= h($awayLabel) ?></strong></td>
-                        <td class="tc"><?= $res ?></td>
-                    </tr>
-                <?php endif; ?>
-            <?php endforeach; ?>
-            </tbody>
-        </table>
-        <?php if ($tour['status'] !== 'finished'): ?>
-            <button class="btn" type="submit">Αποθήκευση αποτελεσμάτων</button>
-        <?php endif; ?>
-    </form>
+    <div class="main__header" style="margin-bottom:12px;">
+        <h3 class="card__title" style="margin:0;">
+            <?= h($title) ?>
+            <span class="badge <?= $r['status']==='completed'?'badge--on':'' ?>" style="margin-left:.5rem;">
+                <?= $r['status']==='completed' ? 'Ολοκληρώθηκε' : 'Σε εξέλιξη' ?>
+            </span>
+        </h3>
+        <div class="d-flex gap-2">
+            <a class="btn btn--ghost btn--sm" href="<?= h($sheetsUrl($rn)) ?>" target="_blank">🖨 Φύλλα αγώνα</a>
+            <a class="btn btn--sm" href="<?= h(url('admin/tournament_secretariat.php?id=' . $id . '#round-' . $rn)) ?>">📝 Σκορ</a>
+        </div>
+    </div>
+    <div class="table-responsive">
+    <table class="table">
+        <thead><tr><th>Γήπεδο</th><th class="right">Γηπεδούχος</th><th class="tc">Σκορ</th><th>Φιλοξενούμενος</th></tr></thead>
+        <tbody>
+        <?php foreach ($matches as $m):
+            $homeLabel = $m['home_team_id'] !== null ? ($labels[(int)$m['home_team_id']] ?? ('#' . (int)$m['home_team_id'])) : '—';
+            $courtLbl = $m['court_no'] !== null ? (int)$m['court_no'] : (int)$m['board_no'];
+            if ((int)$m['is_bye'] === 1): ?>
+                <tr>
+                    <td>—</td>
+                    <td class="right"><strong><?= h($homeLabel) ?></strong></td>
+                    <td class="tc" colspan="2"><span class="badge badge--on">ΡΕΠΟ / πρόκριση<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></span></td>
+                </tr>
+            <?php else:
+                $awayLabel = $m['away_team_id'] !== null ? ($labels[(int)$m['away_team_id']] ?? ('#' . (int)$m['away_team_id'])) : '—';
+                $hs = $m['home_score']; $as = $m['away_score'];
+                $scoreTxt = ($m['status'] === 'played') ? ((int)$hs . ' : ' . (int)$as) : '—';
+                $stageTag = ($phase !== 'swiss' && ($m['stage'] ?? '') !== '' && ($m['stage'] ?? '') !== $stage) ? ' <span class="badge">' . h((string)$m['stage']) . '</span>' : '';
+            ?>
+                <tr>
+                    <td><strong><?= $courtLbl ?></strong></td>
+                    <td class="right"><strong><?= h($homeLabel) ?></strong><?= $stageTag ?></td>
+                    <td class="tc nowrap"><?= $scoreTxt ?></td>
+                    <td><strong><?= h($awayLabel) ?></strong></td>
+                </tr>
+            <?php endif; ?>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
 </div>
 <?php endforeach; ?>
+
+<?php if ($printNow > 0): ?>
+<script>window.open(<?= json_encode($sheetsUrl($printNow)) ?>, '_blank');</script>
+<?php endif; ?>
 
 <?php render_footer(); ?>
