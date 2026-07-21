@@ -21,6 +21,7 @@ function render_header(string $title, string $role, string $active = ''): void
     $adminLinks = [
         ['dashboard',     'Αρχική',             'admin/dashboard.php'],
         ['championships', 'Πρωταθλήματα',        'admin/championships.php'],
+        ['tournaments',   'Διοργανώσεις',        'admin/tournaments.php'],
         ['clubs',         'Σύλλογοι',           'admin/clubs.php'],
         ['club_users',    'Λογαριασμοί',        'admin/club_users.php'],
         ['players',       'Αθλητές',            'admin/players.php'],

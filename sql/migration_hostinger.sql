@@ -248,6 +248,72 @@ VALUES ('admin',
 ON DUPLICATE KEY UPDATE `username` = `username`;
 
 -- ============================================================================
+-- E) Διοργανώσεις (Ελβετικό Σύστημα) — app_tournament* πίνακες.
+--    Ταυτόσημοι με το sql/tournaments.sql· επαναλαμβάνονται εδώ ώστε το
+--    integration migration να στήνει και τη μηχανή αγώνων. Καμία αλλαγή στους
+--    υπάρχοντες πίνακες — η μηχανή διαβάζει ομάδες από `app_teams`.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS `app_tournaments` (
+  `id`             INT(11)      NOT NULL AUTO_INCREMENT,
+  `name`           VARCHAR(255) NOT NULL,
+  `gamecode`       VARCHAR(64)  NOT NULL,
+  `format`         VARCHAR(16)  NOT NULL DEFAULT 'swiss',
+  `status`         VARCHAR(16)  NOT NULL DEFAULT 'setup',
+  `rounds_planned` INT(11)      NULL,
+  `win_points`     INT(11)      NOT NULL DEFAULT 2,
+  `draw_points`    INT(11)      NOT NULL DEFAULT 1,
+  `loss_points`    INT(11)      NOT NULL DEFAULT 0,
+  `bye_score_for`  INT(11)      NOT NULL DEFAULT 13,
+  `bye_score_against` INT(11)   NOT NULL DEFAULT 7,
+  `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_gamecode` (`gamecode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `app_tournament_teams` (
+  `id`            INT(11)      NOT NULL AUTO_INCREMENT,
+  `tournament_id` INT(11)      NOT NULL,
+  `teamname`      VARCHAR(64)  NOT NULL,
+  `clubcode`      VARCHAR(32)  NULL,
+  `label`         VARCHAR(255) NOT NULL,
+  `seed`          INT(11)      NULL,
+  `withdrawn`     TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_tournament_team` (`tournament_id`,`teamname`),
+  KEY `idx_tournament` (`tournament_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `app_tournament_rounds` (
+  `id`            INT(11)     NOT NULL AUTO_INCREMENT,
+  `tournament_id` INT(11)     NOT NULL,
+  `round_no`      INT(11)     NOT NULL,
+  `status`        VARCHAR(16) NOT NULL DEFAULT 'paired',
+  `created_at`    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_tournament_round` (`tournament_id`,`round_no`),
+  KEY `idx_tournament` (`tournament_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `app_tournament_matches` (
+  `id`            INT(11)     NOT NULL AUTO_INCREMENT,
+  `tournament_id` INT(11)     NOT NULL,
+  `round_no`      INT(11)     NOT NULL,
+  `board_no`      INT(11)     NOT NULL,
+  `home_team_id`  INT(11)     NOT NULL,
+  `away_team_id`  INT(11)     NULL,
+  `home_score`    INT(11)     NULL,
+  `away_score`    INT(11)     NULL,
+  `status`        VARCHAR(16) NOT NULL DEFAULT 'pending',
+  `is_bye`        TINYINT(1)  NOT NULL DEFAULT 0,
+  `created_at`    TIMESTAMP   DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_tournament_round` (`tournament_id`,`round_no`),
+  KEY `idx_home` (`home_team_id`),
+  KEY `idx_away` (`away_team_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================================================
 -- ΠΡΟΑΙΡΕΤΙΚΟ: λογαριασμοί συλλόγων (βγάλε τα σχόλια αν τους θες).
 -- Password για όλους: test1234
 -- Για να φτιάξεις δικούς σου, πήγαινε admin → Λογαριασμοί Συλλόγων.
