@@ -46,14 +46,15 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
 CREATE TABLE IF NOT EXISTS `app_tournament_teams` (
   `id`            INT(11)      NOT NULL AUTO_INCREMENT,
   `tournament_id` INT(11)      NOT NULL,
+  `src_teamid`    INT(11)      NULL,                    -- μοναδική ταυτότητα ομάδας (teams.teamid)
   `teamname`      VARCHAR(64)  NOT NULL,                -- αναφορά στο teams.teamname
   `clubcode`      VARCHAR(32)  NULL,
-  `label`         VARCHAR(255) NOT NULL,                -- εμφανιζόμενο όνομα
+  `label`         VARCHAR(255) NOT NULL,                -- εμφανιζόμενο όνομα (ονόματα αθλητών)
   `seed`          INT(11)      NULL,                    -- αρχική κατάταξη/σειρά
   `withdrawn`     TINYINT(1)   NOT NULL DEFAULT 0,      -- αποχώρησε
   `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_tournament_team` (`tournament_id`,`teamname`),
+  UNIQUE KEY `uniq_tournament_team` (`tournament_id`,`src_teamid`),
   KEY `idx_tournament` (`tournament_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

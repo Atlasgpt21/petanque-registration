@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
 CREATE TABLE IF NOT EXISTS `app_tournament_teams` (
   `id`            INT(11)      NOT NULL AUTO_INCREMENT,
   `tournament_id` INT(11)      NOT NULL,
+  `src_teamid`    INT(11)      NULL,
   `teamname`      VARCHAR(64)  NOT NULL,
   `clubcode`      VARCHAR(32)  NULL,
   `label`         VARCHAR(255) NOT NULL,
@@ -284,7 +285,7 @@ CREATE TABLE IF NOT EXISTS `app_tournament_teams` (
   `withdrawn`     TINYINT(1)   NOT NULL DEFAULT 0,
   `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_tournament_team` (`tournament_id`,`teamname`),
+  UNIQUE KEY `uniq_tournament_team` (`tournament_id`,`src_teamid`),
   KEY `idx_tournament` (`tournament_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

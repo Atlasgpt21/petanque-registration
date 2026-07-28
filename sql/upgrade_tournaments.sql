@@ -15,6 +15,13 @@ ALTER TABLE `app_tournaments`
   ADD COLUMN IF NOT EXISTS `ko_size`        INT(11)     NOT NULL DEFAULT 0 AFTER `courts`,
   ADD COLUMN IF NOT EXISTS `friendship_cup` TINYINT(1)  NOT NULL DEFAULT 0 AFTER `ko_size`;
 
+-- Ταυτότητα ομάδας βάσει του μοναδικού teamid της πηγής (ΟΧΙ teamname, που δεν
+-- είναι μοναδικό ανά σύλλογο). ΣΗΜΕΙΩΣΗ: αν ο πίνακας app_tournament_teams είχε
+-- ήδη δεδομένα με το παλιό unique key (tournament_id, teamname), προτείνεται
+-- καθαρή επαναδημιουργία με το sql/reset_tournaments.sql.
+ALTER TABLE `app_tournament_teams`
+  ADD COLUMN IF NOT EXISTS `src_teamid` INT(11) NULL AFTER `tournament_id`;
+
 ALTER TABLE `app_tournament_rounds`
   ADD COLUMN IF NOT EXISTS `phase` VARCHAR(16) NOT NULL DEFAULT 'swiss' AFTER `round_no`,
   ADD COLUMN IF NOT EXISTS `stage` VARCHAR(24) NULL AFTER `phase`;
