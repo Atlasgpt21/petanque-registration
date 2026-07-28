@@ -87,6 +87,47 @@ document.addEventListener('DOMContentLoaded', function () {
   refresh();
 });
 
+// Confirm modal — robust replacement for native confirm() on delete/danger
+// forms (native dialogs can be suppressed by the browser, silently blocking
+// submission). Any <form data-confirm="μήνυμα"> is intercepted here.
+document.addEventListener('DOMContentLoaded', function () {
+  const backdrop = document.getElementById('cmodalBackdrop');
+  const textEl = document.getElementById('cmodalText');
+  const okBtn = document.getElementById('cmodalOk');
+  const cancelBtn = document.getElementById('cmodalCancel');
+  let pendingForm = null;
+
+  function close() {
+    if (backdrop) backdrop.classList.remove('is-open');
+    pendingForm = null;
+  }
+
+  document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+    form.addEventListener('submit', function (ev) {
+      if (form.dataset.confirmed === '1') return; // already confirmed
+      ev.preventDefault();
+      const msg = form.getAttribute('data-confirm') || 'Είστε σίγουροι;';
+      if (!backdrop) { // fallback if modal markup missing
+        if (window.confirm(msg)) { form.dataset.confirmed = '1'; form.submit(); }
+        return;
+      }
+      pendingForm = form;
+      if (textEl) textEl.textContent = msg;
+      backdrop.classList.add('is-open');
+    });
+  });
+
+  if (okBtn) okBtn.addEventListener('click', function () {
+    if (pendingForm) { pendingForm.dataset.confirmed = '1'; pendingForm.submit(); }
+    close();
+  });
+  if (cancelBtn) cancelBtn.addEventListener('click', close);
+  if (backdrop) backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && backdrop && backdrop.classList.contains('is-open')) close();
+  });
+});
+
 // Auth tabs (login page)
 document.addEventListener('DOMContentLoaded', function () {
   const tabs = document.querySelectorAll('[data-auth-tab]');

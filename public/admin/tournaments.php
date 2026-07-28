@@ -103,7 +103,7 @@ render_header('Διοργανώσεις', 'admin', 'tournaments');
                 </td>
                 <td class="actions">
                     <a class="btn btn--sm" href="<?= h(url('admin/tournament_view.php?id=' . $t['id'])) ?>">Διαχείριση</a>
-                    <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή διοργάνωσης και όλων των γύρων/αγώνων;');">
+                    <form method="post" style="display:inline" data-confirm="Διαγραφή διοργάνωσης και όλων των γύρων/αγώνων;">
                         <?= csrf_field() ?>
                         <input type="hidden" name="op" value="delete">
                         <input type="hidden" name="id" value="<?= (int)$t['id'] ?>">

@@ -139,7 +139,7 @@ render_header('Σύλλογοι', 'admin', 'clubs');
                 <td class="actions">
                     <?php if (!$readonly): ?>
                         <a class="btn btn--sm btn--ghost" href="<?= h(url('admin/clubs.php?action=edit&id=' . $c['clubid'])) ?>">Επεξεργασία</a>
-                        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή;');">
+                        <form method="post" style="display:inline" data-confirm="Διαγραφή;">
                             <?= csrf_field() ?><input type="hidden" name="op" value="delete"><input type="hidden" name="clubid" value="<?= (int)$c['clubid'] ?>">
                             <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
                         </form>

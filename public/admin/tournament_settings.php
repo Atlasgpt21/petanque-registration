@@ -134,7 +134,7 @@ render_header('Ρυθμίσεις: ' . $tour['name'], 'admin', 'tournaments');
 
 <div class="card mt-24">
     <h3 class="card__title">Επικίνδυνη ζώνη</h3>
-    <form method="post" onsubmit="return confirm('Οριστική διαγραφή της διοργάνωσης και όλων των γύρων/αγώνων;');">
+    <form method="post" data-confirm="Οριστική διαγραφή της διοργάνωσης και όλων των γύρων/αγώνων;">
         <?= csrf_field() ?>
         <input type="hidden" name="op" value="delete">
         <button class="btn btn--danger" type="submit">Διαγραφή διοργάνωσης</button>

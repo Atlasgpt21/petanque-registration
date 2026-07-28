@@ -173,7 +173,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
                             <button class="btn btn--sm btn--ghost" type="submit"><?= (int)$t['withdrawn'] === 1 ? 'Επαναφορά' : 'Αποχώρηση' ?></button>
                         </form>
                         <?php if (!$hasRounds): ?>
-                            <form method="post" style="display:inline" onsubmit="return confirm('Αφαίρεση ομάδας;');">
+                            <form method="post" style="display:inline" data-confirm="Αφαίρεση ομάδας;">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="op" value="delete_team">
                                 <input type="hidden" name="team_id" value="<?= (int)$t['id'] ?>">
@@ -203,7 +203,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
         </button>
     </form>
     <?php if ($hasRounds && $tour['status'] !== 'finished'): ?>
-        <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή τελευταίου γύρου (<?= $lastRound ?>);');">
+        <form method="post" style="display:inline" data-confirm="Διαγραφή τελευταίου γύρου (<?= $lastRound ?>);">
             <?= csrf_field() ?>
             <input type="hidden" name="op" value="delete_last_round">
             <button class="btn btn--ghost" type="submit">Διαγραφή γύρου <?= $lastRound ?></button>
