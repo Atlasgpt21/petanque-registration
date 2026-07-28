@@ -56,8 +56,13 @@ function tour_all(PDO $pdo): array
 function tour_create(PDO $pdo, string $name, string $gamecode, string $category = 'ALL'): int
 {
     $tt = tour_tables();
-    $st = $pdo->prepare("INSERT INTO `{$tt['tournaments']}` (name, gamecode, category) VALUES (?,?,?)");
-    $st->execute([$name, $gamecode, $category]);
+    // Προεπιλογές προδιαγραφής: 5 γύροι Ελβετικού, 1 βαθμός/νίκη, χωρίς ισοπαλία,
+    // Κύπελλο Φιλίας ενεργό, TOP-16 για Άνδρες/MIX και TOP-8 για Γυναίκες.
+    $koSize = $category === 'F' ? 8 : 16;
+    $st = $pdo->prepare("INSERT INTO `{$tt['tournaments']}`
+        (name, gamecode, category, rounds_planned, win_points, draw_points, loss_points, ko_size, friendship_cup)
+        VALUES (?,?,?, 5, 1, 0, 0, ?, 1)");
+    $st->execute([$name, $gamecode, $category, $koSize]);
     return (int)$pdo->lastInsertId();
 }
 
@@ -90,13 +95,15 @@ function tour_update_settings(PDO $pdo, int $id, array $s): void
 {
     $tt = tour_tables();
     $pdo->prepare("UPDATE `{$tt['tournaments']}` SET
-            name=?, rounds_planned=?, courts=?, ko_size=?, friendship_cup=?,
+            name=?, rounds_planned=?, courts=?, court_from=?, court_to=?, ko_size=?, friendship_cup=?,
             win_points=?, draw_points=?, loss_points=?, bye_score_for=?, bye_score_against=?
         WHERE id=?")
         ->execute([
             (string)$s['name'],
             $s['rounds_planned'] !== null ? (int)$s['rounds_planned'] : null,
             (int)$s['courts'],
+            (int)($s['court_from'] ?? 0),
+            (int)($s['court_to'] ?? 0),
             (int)$s['ko_size'],
             (int)$s['friendship_cup'],
             (int)$s['win_points'],
@@ -106,6 +113,27 @@ function tour_update_settings(PDO $pdo, int $id, array $s): void
             (int)$s['bye_score_against'],
             $id,
         ]);
+}
+
+/**
+ * Ταξινομημένη λίστα διαθέσιμων αριθμών γηπέδου για το ταμπλό.
+ * Προτεραιότητα: εύρος [court_from..court_to] → αλλιώς 1..courts → αλλιώς κενή
+ * (κενή = σειριακή αρίθμηση = board_no).
+ *
+ * @return array<int,int>
+ */
+function tour_court_list(array $tour): array
+{
+    $from = (int)($tour['court_from'] ?? 0);
+    $to   = (int)($tour['court_to'] ?? 0);
+    if ($from > 0 && $to >= $from) {
+        return range($from, $to);
+    }
+    $courts = (int)($tour['courts'] ?? 0);
+    if ($courts > 0) {
+        return range(1, $courts);
+    }
+    return [];
 }
 
 function tour_delete(PDO $pdo, int $id): void
@@ -420,9 +448,24 @@ function tour_generate_round(PDO $pdo, int $id): int
         }
     }
 
-    $result   = swiss_pair_next($standings, $byeHistory, $pastPairs);
-    $roundNo  = tour_last_round_no($pdo, $id) + 1;
-    $courts   = (int)($tour['courts'] ?? 0);
+    // Στον 1ο γύρο, αποφυγή (όσο γίνεται) αγώνων μεταξύ ομάδων του ίδιου συλλόγου.
+    $avoidPairs = [];
+    if ($lastRound === 0) {
+        $active = array_values(array_filter($standings, static fn($s) => empty($s['withdrawn'])));
+        for ($i = 0; $i < count($active); $i++) {
+            for ($j = $i + 1; $j < count($active); $j++) {
+                $ca = $active[$i]['clubcode'] ?? null;
+                $cb = $active[$j]['clubcode'] ?? null;
+                if ($ca !== null && $ca !== '' && $ca === $cb) {
+                    $avoidPairs[swiss_pair_key((int)$active[$i]['id'], (int)$active[$j]['id'])] = true;
+                }
+            }
+        }
+    }
+
+    $result    = swiss_pair_next($standings, $byeHistory, $pastPairs, $avoidPairs);
+    $roundNo   = tour_last_round_no($pdo, $id) + 1;
+    $courtList = tour_court_list($tour);
 
     $pdo->beginTransaction();
     try {
@@ -436,7 +479,7 @@ function tour_generate_round(PDO $pdo, int $id): int
         $board = 0;
         foreach ($result['pairs'] as [$home, $away]) {
             $board++;
-            $court = $courts > 0 ? (($board - 1) % $courts) + 1 : $board;
+            $court = $courtList !== [] ? $courtList[($board - 1) % count($courtList)] : $board;
             $insM->execute([$id, $roundNo, $board, $court, $home, $away, null, null, 'pending', 0]);
         }
         if ($result['bye'] !== null) {
@@ -499,7 +542,12 @@ function tour_generate_ko(PDO $pdo, int $id, string $phase): int
             if ((int)($tour['friendship_cup'] ?? 0) !== 1) {
                 throw new RuntimeException('Το Κύπελλο Φιλίας δεν είναι ενεργό στις ρυθμίσεις.');
             }
-            $pool = array_slice($ranked, 16, 16); // θέσεις 17–32
+            // Επόμενες ko_size θέσεις: TOP-16 → 17–32, TOP-8 → 9–16.
+            $koSize = (int)($tour['ko_size'] ?? 16);
+            if ($koSize < 2) {
+                $koSize = 16;
+            }
+            $pool = array_slice($ranked, $koSize, $koSize);
         }
         if (count($pool) < 2) {
             throw new RuntimeException('Δεν υπάρχουν αρκετές ομάδες για αυτή τη φάση.');
@@ -567,6 +615,7 @@ function _tour_write_ko_round(PDO $pdo, int $id, string $phase, string $roundSta
 {
     $tt = tour_tables();
     $roundNo = tour_last_round_no($pdo, $id) + 1;
+    $courtList = tour_court_list($tour);
 
     $pdo->beginTransaction();
     try {
@@ -593,7 +642,7 @@ function _tour_write_ko_round(PDO $pdo, int $id, string $phase, string $roundSta
                 // Bye: πρόκριση άνευ αγώνα.
                 $insM->execute([$id, $roundNo, $board, null, $phase, $stage, $home, null, null, null, 'played', 1]);
             } else {
-                $court = $courts > 0 ? (($realIdx) % $courts) + 1 : $board;
+                $court = $courtList !== [] ? $courtList[$realIdx % count($courtList)] : $board;
                 $realIdx++;
                 $insM->execute([$id, $roundNo, $board, $court, $phase, $stage, $home, $away, null, null, 'pending', 0]);
             }

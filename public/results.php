@@ -65,6 +65,42 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
   <h2 class="h4"><?= h($tour['name']) ?> <?php if ($cl!==''): ?><span class="badge badge-<?= h($cat) ?>"><?= h($cl) ?></span><?php endif; ?></h2>
   <p class="text-muted"><?= h($game['name'] ?? $tour['gamecode']) ?></p>
 
+  <?php
+    // Αγώνες σε εξέλιξη τώρα (εκκρεμείς, όχι ρεπό) — σε όλους τους γύρους/φάσεις.
+    $live = [];
+    foreach ($rounds as $r) {
+        foreach (tour_matches($pdo, $tid, (int)$r['round_no']) as $m) {
+            if (($m['status'] ?? '') === 'pending' && (int)$m['is_bye'] !== 1 && $m['away_team_id'] !== null) {
+                $m['_round'] = $r; $live[] = $m;
+            }
+        }
+    }
+    usort($live, static fn($a, $b) => ((int)($a['court_no'] ?? 0)) <=> ((int)($b['court_no'] ?? 0)));
+  ?>
+  <div class="card shadow-sm mb-4 border-danger">
+    <div class="card-header fw-semibold text-bg-danger">🔴 Αγώνες σε εξέλιξη τώρα</div>
+    <div class="table-responsive">
+      <table class="table table-sm m-0 align-middle">
+        <tbody>
+        <?php foreach ($live as $m):
+          $rn=(int)$m['_round']['round_no']; $phase=$m['_round']['phase']??'swiss'; $stage=(string)($m['_round']['stage']??'');
+          $ttl = $phase==='swiss' ? "Γύρος $rn" : (($phase==='friendship'?'Κύπελλο Φιλίας':'Knockout').($stage!==''?' — '.$stage:''));
+          $home = $labels[(int)$m['home_team_id']] ?? '—'; $away = $labels[(int)$m['away_team_id']] ?? '—';
+        ?>
+          <tr>
+            <td class="text-center"><?php if (!empty($m['court_no'])): ?><span class="badge text-bg-dark">Γήπεδο <?= (int)$m['court_no'] ?></span><?php endif; ?></td>
+            <td class="text-end w-50 fw-semibold"><?= h($home) ?></td>
+            <td class="text-center">vs</td>
+            <td class="w-50 fw-semibold"><?= h($away) ?></td>
+            <td class="small text-muted text-nowrap"><?= h($ttl) ?></td>
+          </tr>
+        <?php endforeach; ?>
+        <?php if (!$live): ?><tr><td class="text-muted">Δεν υπάρχουν αγώνες σε εξέλιξη αυτή τη στιγμή.</td></tr><?php endif; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <div class="card shadow-sm mb-4">
     <div class="card-header fw-semibold">Κατάταξη</div>
     <div class="table-responsive">
@@ -107,8 +143,9 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
         <tbody>
         <?php foreach ($ms as $m):
           $home = $m['home_team_id']!==null ? ($labels[(int)$m['home_team_id']] ?? '—') : '—';
+          $courtCell = !empty($m['court_no']) ? '<span class="badge text-bg-light border">Γ.'.(int)$m['court_no'].'</span>' : '';
           if ((int)$m['is_bye']===1): ?>
-            <tr><td class="text-end w-50"><?= h($home) ?></td><td class="text-center"><span class="badge text-bg-info">ΡΕΠΟ</span></td><td class="w-50">—</td></tr>
+            <tr><td class="text-center"><?= $courtCell ?></td><td class="text-end w-50"><?= h($home) ?></td><td class="text-center"><span class="badge text-bg-info">ΡΕΠΟ</span></td><td class="w-50">—</td></tr>
           <?php else:
             $away = $m['away_team_id']!==null ? ($labels[(int)$m['away_team_id']] ?? '—') : '—';
             $played = $m['status']==='played';
@@ -116,6 +153,7 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
             $hw = $played && $hs>$as; $aw = $played && $as>$hs;
           ?>
             <tr>
+              <td class="text-center"><?= $courtCell ?></td>
               <td class="text-end w-50 <?= $hw?'fw-bold':'' ?>"><?= h($home) ?></td>
               <td class="text-center text-nowrap"><?= $played ? ($hs.' : '.$as) : 'vs' ?></td>
               <td class="w-50 <?= $aw?'fw-bold':'' ?>"><?= h($away) ?></td>

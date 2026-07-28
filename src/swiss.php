@@ -169,9 +169,10 @@ function swiss_pair_key(int $a, int $b): string
  * @param array<int,array<string,mixed>> $standings  Ταξινομημένη κατάταξη (καλύτερος πρώτος)· περιλαμβάνει `id`,`seed`,`byes`,`withdrawn`.
  * @param array<int,int> $byeHistory  map team_id => πλήθος ρεπό που έχει ήδη πάρει.
  * @param array<string,bool> $pastPairs  set από swiss_pair_key() για ήδη παιγμένα ζευγάρια.
+ * @param array<string,bool> $avoidPairs  ΕΠΙΠΛΕΟΝ soft περιορισμός (π.χ. ίδιος σύλλογος στον 1ο γύρο)· αγνοείται αν δεν βρίσκεται λύση.
  * @return array{pairs:array<int,array{0:int,1:int}>,bye:?int}
  */
-function swiss_pair_next(array $standings, array $byeHistory, array $pastPairs): array
+function swiss_pair_next(array $standings, array $byeHistory, array $pastPairs, array $avoidPairs = []): array
 {
     // Ενεργές ομάδες με τη σειρά κατάταξης.
     $order = [];
@@ -198,7 +199,15 @@ function swiss_pair_next(array $standings, array $byeHistory, array $pastPairs):
         }
     }
 
-    $pairs = _swiss_backtrack_pairs($order, $pastPairs);
+    // 1η προσπάθεια: αποφυγή rematches ΚΑΙ των soft περιορισμών (π.χ. ίδιος σύλλογος).
+    $pairs = null;
+    if ($avoidPairs !== []) {
+        $pairs = _swiss_backtrack_pairs($order, $pastPairs + $avoidPairs);
+    }
+    // 2η προσπάθεια: αποφυγή μόνο rematches.
+    if ($pairs === null) {
+        $pairs = _swiss_backtrack_pairs($order, $pastPairs);
+    }
     if ($pairs === null) {
         // Δεν βρέθηκε λύση χωρίς rematch — επιτρέπουμε rematches (γειτονικά).
         $pairs = [];

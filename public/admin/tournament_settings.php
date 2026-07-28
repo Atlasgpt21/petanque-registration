@@ -26,10 +26,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'name'              => trim((string)($_POST['name'] ?? $tour['name'])),
                 'rounds_planned'    => $rp === '' ? null : (int)$rp,
                 'courts'            => max(0, (int)($_POST['courts'] ?? 0)),
+                'court_from'        => max(0, (int)($_POST['court_from'] ?? 0)),
+                'court_to'          => max(0, (int)($_POST['court_to'] ?? 0)),
                 'ko_size'           => in_array((int)($_POST['ko_size'] ?? 0), [0, 8, 16], true) ? (int)$_POST['ko_size'] : 0,
                 'friendship_cup'    => isset($_POST['friendship_cup']) ? 1 : 0,
-                'win_points'        => (int)($_POST['win_points'] ?? 2),
-                'draw_points'       => (int)($_POST['draw_points'] ?? 1),
+                'win_points'        => (int)($_POST['win_points'] ?? 1),
+                'draw_points'       => (int)($_POST['draw_points'] ?? 0),
                 'loss_points'       => (int)($_POST['loss_points'] ?? 0),
                 'bye_score_for'     => (int)($_POST['bye_score_for'] ?? 13),
                 'bye_score_against' => (int)($_POST['bye_score_against'] ?? 7),
@@ -75,13 +77,25 @@ render_header('Ρυθμίσεις: ' . $tour['name'], 'admin', 'tournaments');
             <input class="input" type="text" name="name" value="<?= h($tour['name']) ?>" required>
         </div>
         <div class="field">
-            <label class="field__label">Πλήθος γηπέδων</label>
+            <label class="field__label">Σύνολο γηπέδων</label>
             <input class="input" type="number" min="0" max="200" name="courts" value="<?= (int)$tour['courts'] ?>">
-            <span class="field__hint">Στην κλήρωση κάθε αγώνας παίρνει αριθμό γηπέδου. 0 = χωρίς όριο (σειριακή αρίθμηση).</span>
+            <span class="field__hint">Το συνολικό πλήθος γηπέδων της διοργάνωσης. 0 = χωρίς όριο (σειριακή αρίθμηση).</span>
         </div>
+        <div class="grid grid--2">
+            <div class="field">
+                <label class="field__label">Γήπεδα του ταμπλό — από</label>
+                <input class="input" type="number" min="0" max="200" name="court_from" value="<?= (int)($tour['court_from'] ?? 0) ?>">
+            </div>
+            <div class="field">
+                <label class="field__label">έως</label>
+                <input class="input" type="number" min="0" max="200" name="court_to" value="<?= (int)($tour['court_to'] ?? 0) ?>">
+            </div>
+        </div>
+        <p class="field__hint">Εύρος γηπέδων για ΑΥΤΟ το ταμπλό — π.χ. Άνδρες 1–15, Γυναίκες 16–25. Αν μείνει 0–0, χρησιμοποιείται το σύνολο γηπέδων. Στα MIX αφήστε το κενό (παίζουν όλοι σε όλα).</p>
         <div class="field">
-            <label class="field__label">Προγραμματισμένοι γύροι Ελβετικού (προαιρετικό)</label>
-            <input class="input" type="number" min="0" max="30" name="rounds_planned" value="<?= $tour['rounds_planned'] !== null ? (int)$tour['rounds_planned'] : '' ?>">
+            <label class="field__label">Προγραμματισμένοι γύροι Ελβετικού</label>
+            <input class="input" type="number" min="0" max="30" name="rounds_planned" value="<?= $tour['rounds_planned'] !== null ? (int)$tour['rounds_planned'] : 5 ?>">
+            <span class="field__hint">Προεπιλογή 5 γύροι. Μετά τον τελευταίο γύρο δεν δημιουργείται νέος — προχωράτε στη φάση knockout.</span>
         </div>
     </div>
 

@@ -12,7 +12,9 @@
 ALTER TABLE `app_tournaments`
   ADD COLUMN IF NOT EXISTS `category`       VARCHAR(8)  NOT NULL DEFAULT 'ALL' AFTER `gamecode`,
   ADD COLUMN IF NOT EXISTS `courts`         INT(11)     NOT NULL DEFAULT 0 AFTER `bye_score_against`,
-  ADD COLUMN IF NOT EXISTS `ko_size`        INT(11)     NOT NULL DEFAULT 0 AFTER `courts`,
+  ADD COLUMN IF NOT EXISTS `court_from`     INT(11)     NOT NULL DEFAULT 0 AFTER `courts`,
+  ADD COLUMN IF NOT EXISTS `court_to`       INT(11)     NOT NULL DEFAULT 0 AFTER `court_from`,
+  ADD COLUMN IF NOT EXISTS `ko_size`        INT(11)     NOT NULL DEFAULT 0 AFTER `court_to`,
   ADD COLUMN IF NOT EXISTS `friendship_cup` TINYINT(1)  NOT NULL DEFAULT 0 AFTER `ko_size`;
 
 -- Ταυτότητα ομάδας βάσει του μοναδικού teamid της πηγής (ΟΧΙ teamname, που δεν

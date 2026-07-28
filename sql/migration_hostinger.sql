@@ -267,6 +267,8 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `bye_score_for`  INT(11)      NOT NULL DEFAULT 13,
   `bye_score_against` INT(11)   NOT NULL DEFAULT 7,
   `courts`         INT(11)      NOT NULL DEFAULT 0,
+  `court_from`     INT(11)      NOT NULL DEFAULT 0,
+  `court_to`       INT(11)      NOT NULL DEFAULT 0,
   `ko_size`        INT(11)      NOT NULL DEFAULT 0,
   `friendship_cup` TINYINT(1)   NOT NULL DEFAULT 0,
   `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,

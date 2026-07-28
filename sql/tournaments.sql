@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS `app_tournaments` (
   `bye_score_for`  INT(11)      NOT NULL DEFAULT 13,     -- πόντοι υπέρ σε ρεπό (bye)
   `bye_score_against` INT(11)   NOT NULL DEFAULT 7,      -- πόντοι κατά σε ρεπό (bye)
   `courts`         INT(11)      NOT NULL DEFAULT 0,      -- πλήθος γηπέδων (0 = χωρίς όριο)
+  `court_from`     INT(11)      NOT NULL DEFAULT 0,      -- πρώτο γήπεδο του ταμπλό (0 = auto)
+  `court_to`       INT(11)      NOT NULL DEFAULT 0,      -- τελευταίο γήπεδο του ταμπλό (0 = auto)
   `ko_size`        INT(11)      NOT NULL DEFAULT 0,      -- knockout κυρίως ταμπλό: 0 | 8 | 16
   `friendship_cup` TINYINT(1)   NOT NULL DEFAULT 0,      -- Κύπελλο Φιλίας (θέσεις 17–32)
   `created_at`     TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
