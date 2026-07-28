@@ -155,7 +155,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
             <?php foreach ($teams as $t): ?>
                 <tr>
                     <td><?= $t['seed'] !== null ? (int)$t['seed'] : '—' ?></td>
-                    <td><strong><?= h($t['teamname']) ?></strong></td>
+                    <td><strong><?= h($t['label']) ?></strong> <span class="text-muted small">(<?= h($t['teamname']) ?>)</span></td>
                     <td><?= h($t['clubcode'] ?? '—') ?></td>
                     <td>
                         <?php if ((int)$t['withdrawn'] === 1): ?>

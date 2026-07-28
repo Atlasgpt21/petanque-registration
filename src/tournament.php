@@ -158,23 +158,93 @@ function tour_import_teams(PDO $pdo, int $id, string $gamecode): int
         $existing[$r['teamname']] = true;
     }
 
+    // Ετικέτες με ονόματα αθλητών (αντί για τον κωδικό ομάδας π.χ. CLUBmix1).
+    $labelMap = tour_athlete_label_map($pdo, $gamecode, array_column($rows, 'teamname'));
+
     $seed = 0;
     foreach (db_all($pdo, "SELECT MAX(seed) AS m FROM `{$tt['teams']}` WHERE tournament_id=?", [$id]) as $r) {
         $seed = (int)($r['m'] ?? 0);
     }
 
-    $ins = $pdo->prepare("INSERT INTO `{$tt['teams']}` (tournament_id, teamname, clubcode, label, seed) VALUES (?,?,?,?,?)");
+    // Idempotent: επανάληψη import δεν σκάει στο uniq_tournament_team, απλώς ανανεώνει την ετικέτα.
+    $ins = $pdo->prepare("INSERT INTO `{$tt['teams']}` (tournament_id, teamname, clubcode, label, seed)
+        VALUES (?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE label=VALUES(label), clubcode=VALUES(clubcode)");
+    $upd = $pdo->prepare("UPDATE `{$tt['teams']}` SET label=?, clubcode=? WHERE tournament_id=? AND teamname=?");
     $added = 0;
     foreach ($rows as $row) {
-        if (isset($existing[$row['teamname']])) {
+        $tn       = $row['teamname'];
+        $clubReal = trim((string)($row['club_name'] ?? ''));
+        $names    = $labelMap[$tn] ?? '';
+        $label    = ($names !== '' ? $names : $tn) . ($clubReal !== '' ? ' — ' . $clubReal : '');
+        if (isset($existing[$tn])) {
+            $upd->execute([$label, $row['clubcode'] ?? null, $id, $tn]);
             continue;
         }
-        $club  = trim((string)($row['club_name'] ?? $row['clubcode'] ?? ''));
-        $label = $row['teamname'] . ($club !== '' ? ' — ' . $club : '');
-        $ins->execute([$id, $row['teamname'], $row['clubcode'] ?? null, $label, ++$seed]);
+        $ins->execute([$id, $tn, $row['clubcode'] ?? null, $label, ++$seed]);
+        $existing[$tn] = true;
         $added++;
     }
     return $added;
+}
+
+/**
+ * Χάρτης teamname => ετικέτα με ονόματα αθλητών (π.χ. «ΠΑΠΑΣ ΓΙΑΝΝΗΣ / ΝΤΙΝΑΣ ΚΩΣΤΑΣ»)
+ * βάσει των playercodes της ομάδας στο championship. Fallback: κενό (ο caller κρατά το teamname).
+ *
+ * @param string[] $teamnames
+ * @return array<string,string>
+ */
+function tour_athlete_label_map(PDO $pdo, string $gamecode, array $teamnames): array
+{
+    $T = $GLOBALS['T'];
+    $out = [];
+    $teamnames = array_values(array_unique(array_filter($teamnames, static fn($v) => $v !== null && $v !== '')));
+    if (!$teamnames) {
+        return $out;
+    }
+
+    $in = implode(',', array_fill(0, count($teamnames), '?'));
+    $teams = db_all($pdo, "
+        SELECT teamname, playercodes
+        FROM `{$T['teams']}`
+        WHERE gamecode=? AND teamname IN ($in)
+    ", array_merge([$gamecode], $teamnames));
+
+    $codeMap  = [];  // teamname => [playercodes]
+    $allCodes = [];
+    foreach ($teams as $t) {
+        $codes = array_values(array_filter(array_map('trim', explode('-', (string)$t['playercodes'])), static fn($v) => $v !== ''));
+        $codeMap[$t['teamname']] = $codes;
+        foreach ($codes as $c) {
+            $allCodes[$c] = true;
+        }
+    }
+
+    $names = [];  // playercode => "ΕΠΩΝΥΜΟ ΟΝΟΜΑ"
+    if ($allCodes) {
+        $codes = array_keys($allCodes);
+        $in2   = implode(',', array_fill(0, count($codes), '?'));
+        $players = db_all($pdo, "SELECT playercode, firstname, lastname FROM `{$T['players']}` WHERE playercode IN ($in2)", $codes);
+        if (function_exists('hpf_decrypt_rows')) {
+            $cols = function_exists('hpf_encrypted_cols') ? hpf_encrypted_cols('players') : ['firstname', 'lastname'];
+            $players = hpf_decrypt_rows($players, $cols);
+        }
+        foreach ($players as $p) {
+            $names[$p['playercode']] = trim(trim((string)$p['lastname']) . ' ' . trim((string)$p['firstname']));
+        }
+    }
+
+    foreach ($teamnames as $tn) {
+        $parts = [];
+        foreach ($codeMap[$tn] ?? [] as $c) {
+            if (isset($names[$c]) && $names[$c] !== '') {
+                $parts[] = $names[$c];
+            }
+        }
+        $out[$tn] = $parts ? implode(' / ', $parts) : '';
+    }
+    return $out;
 }
 
 function tour_delete_team(PDO $pdo, int $id, int $teamId): void
