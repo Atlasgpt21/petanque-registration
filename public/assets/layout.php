@@ -9,7 +9,7 @@
 function render_header(string $title, string $role, string $active = ''): void
 {
     $u = current_user();
-    $brandTitle = $role === 'admin' ? 'Διαχείριση' : ($u['clubname'] ?? 'Σύλλογος');
+    $brandTitle = $role === 'admin' ? 'HPF Tournament App' : ($u['clubname'] ?? 'Σύλλογος');
     $brandSub   = $role === 'admin' ? 'Admin panel' : ('Κωδ. ' . ($u['clubcode'] ?? '—'));
 
     $clubLinks = [
@@ -48,7 +48,7 @@ function render_header(string $title, string $role, string $active = ''): void
     echo '<div class="app">';
     echo '<aside class="sidebar offcanvas-md offcanvas-start" tabindex="-1" id="appSidebar">';
     echo '<div class="sidebar__brand">';
-    echo '<div class="sidebar__logo">🟠</div>';
+    echo '<div class="sidebar__logo"><img src="' . h(url('assets/img/hpf-logo.png')) . '" alt="HPF"></div>';
     echo '<div><h1 class="sidebar__title">' . h($brandTitle) . '</h1>';
     echo '<p class="sidebar__subtitle">' . h($brandSub) . '</p></div>';
     echo '</div>';

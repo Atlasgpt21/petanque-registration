@@ -136,6 +136,26 @@ function tour_court_list(array $tour): array
     return [];
 }
 
+/**
+ * Αριθμοί γηπέδων που είναι ήδη «σε χρήση» από αγώνες που ΔΕΝ έχουν παιχτεί
+ * ακόμη (status='pending'), σε οποιαδήποτε φάση/γύρο της διοργάνωσης. Έτσι,
+ * όταν κληρώνονται ταυτόχρονα το κυρίως ταμπλό και το Κύπελλο Φιλίας, δεν
+ * μοιράζονται τα ίδια γήπεδα.
+ *
+ * @return array<int,bool> σετ με κλειδί τον αριθμό γηπέδου
+ */
+function tour_busy_courts(PDO $pdo, int $id): array
+{
+    $tt = tour_tables();
+    $rows = db_all($pdo, "SELECT DISTINCT court_no FROM `{$tt['matches']}`
+        WHERE tournament_id=? AND status='pending' AND is_bye=0 AND court_no IS NOT NULL", [$id]);
+    $busy = [];
+    foreach ($rows as $r) {
+        $busy[(int)$r['court_no']] = true;
+    }
+    return $busy;
+}
+
 function tour_delete(PDO $pdo, int $id): void
 {
     $tt = tour_tables();
@@ -615,7 +635,14 @@ function _tour_write_ko_round(PDO $pdo, int $id, string $phase, string $roundSta
 {
     $tt = tour_tables();
     $roundNo = tour_last_round_no($pdo, $id) + 1;
-    $courtList = tour_court_list($tour);
+    // Απόφυγε γήπεδα που χρησιμοποιούνται ήδη από αγώνες σε εκκρεμότητα άλλης
+    // φάσης (π.χ. κυρίως ταμπλό ↔ Κύπελλο Φιλίας που τρέχουν ταυτόχρονα).
+    $busy = tour_busy_courts($pdo, $id);
+    $full = tour_court_list($tour);
+    $courtList = array_values(array_filter($full, static fn (int $c): bool => empty($busy[$c])));
+    if ($courtList === []) {
+        $courtList = $full; // fallback: καλύτερα σύγκρουση παρά καθόλου γήπεδο
+    }
 
     $pdo->beginTransaction();
     try {
