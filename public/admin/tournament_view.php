@@ -110,7 +110,8 @@ if ($frStarted) {
     foreach (tour_matches($pdo, $id, $lastFrNo) as $m) { if (($m['stage'] ?? '') === 'Τελικός') { $frDone = true; } }
 }
 
-$canSwiss = $activeCount >= 2 && !$koStarted && !$frStarted && $lastSwissCompleted && $tour['status'] !== 'finished';
+$canSwiss = $activeCount >= 2 && !$koStarted && !$frStarted && $lastSwissCompleted
+    && $lastSwissNo < $roundsPlanned && $tour['status'] !== 'finished';
 $koSize   = (int)($tour['ko_size'] ?? 0);
 $courts   = (int)($tour['courts'] ?? 0);
 
@@ -269,6 +270,8 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
     <?php endif; ?>
     <?php if ($swissRounds && !$lastSwissCompleted): ?>
         <p class="field__hint mt-8">Καταχωρήστε όλα τα αποτελέσματα του γύρου <?= $lastSwissNo ?> (<a href="<?= h(url('admin/tournament_secretariat.php?id=' . $id)) ?>">Γραμματεία</a>) για να κληρωθεί ο επόμενος.</p>
+    <?php elseif ($lastSwissCompleted && $lastSwissNo >= $roundsPlanned): ?>
+        <p class="field__hint mt-8">Ολοκληρώθηκαν και οι <?= $roundsPlanned ?> γύροι του Ελβετικού. Προχωρήστε στη φάση knockout.</p>
     <?php endif; ?>
 
     <?php if ($koSize >= 2 || (int)($tour['friendship_cup'] ?? 0) === 1): ?>
