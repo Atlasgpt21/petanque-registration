@@ -90,7 +90,7 @@ render_header('Γραμματεία: ' . $tour['name'], 'admin', 'tournaments');
                     <tr>
                         <td>—</td>
                         <td class="right"><strong><?= h($homeLabel) ?></strong></td>
-                        <td class="tc" colspan="2"><span class="badge badge--on">ΡΕΠΟ / πρόκριση<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></span></td>
+                        <td class="tc" colspan="2"><span class="badge badge--on">Bye<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></span></td>
                         <td class="tc">✓</td>
                     </tr>
                 <?php else:
@@ -105,10 +105,10 @@ render_header('Γραμματεία: ' . $tour['name'], 'admin', 'tournaments');
                         <td><strong><?= $courtLbl ?></strong></td>
                         <td class="right"><strong><?= h($homeLabel) ?></strong></td>
                         <td class="tc nowrap">
-                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="99"
+                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="13"
                                    name="home[<?= $mid ?>]" value="<?= $hs === null ? '' : (int)$hs ?>" <?= $locked ? 'disabled' : '' ?>>
                             :
-                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="99"
+                            <input class="input" style="width:56px;display:inline-block;text-align:center" type="number" min="0" max="13"
                                    name="away[<?= $mid ?>]" value="<?= $as === null ? '' : (int)$as ?>" <?= $locked ? 'disabled' : '' ?>>
                         </td>
                         <td><strong><?= h($awayLabel) ?></strong></td>

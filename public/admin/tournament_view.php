@@ -39,6 +39,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $rn = tour_generate_ko($pdo, $id, $phase);
             flash_set('success', "Κληρώθηκε νέο στάδιο (γύρος $rn). Ανοίγουν τα φύλλα αγώνα.");
             redirect(url('admin/tournament_view.php?id=' . $id . '&print=' . $rn));
+        } elseif ($op === 'save_results') {
+            $roundNo = (int)($_POST['round_no'] ?? 0);
+            $results = [];
+            foreach (($_POST['home'] ?? []) as $mid => $v) { $results[(int)$mid]['home'] = $v; }
+            foreach (($_POST['away'] ?? []) as $mid => $v) { $results[(int)$mid]['away'] = $v; }
+            tour_save_results($pdo, $id, $roundNo, $results);
+            flash_set('success', "Αποθηκεύτηκαν τα αποτελέσματα του γύρου $roundNo.");
+            redirect(url('admin/tournament_view.php?id=' . $id . '&r=' . $roundNo));
         } elseif ($op === 'delete_last_round') {
             tour_delete_last_round($pdo, $id);
             flash_set('success', 'Ο τελευταίος γύρος διαγράφηκε.');
@@ -55,11 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('admin/tournament_view.php?id=' . $id));
 }
 
-$teams     = tour_teams($pdo, $id);
-$rounds    = tour_rounds($pdo, $id);
-$standings = tour_standings($pdo, $id);
-$labels    = tour_team_labels($pdo, $id);
-$game      = db_one($pdo, "SELECT * FROM `{$T['games']}` WHERE gamecode=?", [$tour['gamecode']]);
+$teams       = tour_teams($pdo, $id);
+$rounds      = tour_rounds($pdo, $id);
+$standings   = tour_standings($pdo, $id);
+$labels      = tour_team_labels($pdo, $id);
+$labelsShort = tour_team_labels_short($pdo, $id);
+$game        = db_one($pdo, "SELECT * FROM `{$T['games']}` WHERE gamecode=?", [$tour['gamecode']]);
 
 $cat      = (string)($tour['category'] ?? 'ALL');
 $catLabel = tour_category_label($cat);
@@ -103,6 +112,19 @@ $courts   = (int)($tour['courts'] ?? 0);
 $sheetsUrl = static fn (int $r): string => url('admin/tournament_match_sheets.php?id=' . $id . '&round=' . $r);
 $printNow  = isset($_GET['print']) ? (int)$_GET['print'] : 0;
 
+$isFinished = $tour['status'] === 'finished';
+$finalStandings = ($isFinished && $hasRounds) ? tour_final_standings($pdo, $id) : [];
+
+// Επιλεγμένος γύρος για το card «Τρέχων γύρος» (default: ο τελευταίος).
+$roundNos = array_map(static fn (array $r): int => (int)$r['round_no'], $rounds);
+$viewRound = $lastRound;
+if (isset($_GET['r']) && in_array((int)$_GET['r'], $roundNos, true)) {
+    $viewRound = (int)$_GET['r'];
+}
+$viewRoundRow = null;
+foreach ($rounds as $r) { if ((int)$r['round_no'] === $viewRound) { $viewRoundRow = $r; } }
+$viewMatches = $viewRound > 0 ? tour_matches($pdo, $id, $viewRound) : [];
+
 render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
 ?>
 <div class="main__header">
@@ -135,6 +157,36 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
     <div class="stat"><div class="stat__label">Γύροι</div><div class="stat__value"><?= count($rounds) ?></div></div>
 </div>
 
+<?php if ($isFinished && $finalStandings): ?>
+<!-- Τελική κατάταξη -->
+<div class="card">
+    <h3 class="card__title">🏁 Τελική Κατάταξη</h3>
+    <div class="table-responsive">
+    <table class="table table--compact">
+        <thead><tr>
+            <th>#</th><th>Ομάδα</th>
+            <th class="tc" title="Νίκες 1ης φάσης">Ν</th>
+            <th class="tc" title="Βαθμοί 1ης φάσης">Βαθ.</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($finalStandings as $s): $fr = (int)$s['final_rank'];
+            $medal = $fr === 1 ? '🥇' : ($fr === 2 ? '🥈' : ($fr === 3 ? '🥉' : ''));
+            $short = $labelsShort[(int)$s['id']] ?? tour_team_label_short((string)$s['label']); ?>
+            <tr<?= !empty($s['withdrawn']) ? ' class="muted"' : '' ?>>
+                <td><strong><?= $fr ?></strong> <?= $medal ?></td>
+                <td class="wrap"><?= h($short) ?><?= !empty($s['withdrawn']) ? ' <span class="badge badge--off">αποχ.</span>' : '' ?></td>
+                <td class="tc"><?= (int)$s['wins'] ?></td>
+                <td class="tc"><?= (int)$s['points'] ?></td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+    <p class="field__hint mt-8">Θέσεις 1–4 από τους τελικούς· οι υπόλοιποι με σειρά αποκλεισμού και κατάταξης 1ης φάσης.</p>
+</div>
+<?php endif; ?>
+
+<?php if (!$hasRounds): ?>
 <!-- Ομάδες / Import -->
 <div class="card">
     <div class="main__header" style="margin-bottom:12px;">
@@ -189,6 +241,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
         <?php if ($hasRounds): ?><p class="field__hint mt-8">Η αφαίρεση ομάδων απενεργοποιείται μόλις ξεκινήσουν οι γύροι — χρησιμοποιήστε «Αποχώρηση».</p><?php endif; ?>
     <?php endif; ?>
 </div>
+<?php endif; ?>
 
 <!-- Φάσεις / Κληρώσεις -->
 <div class="card">
@@ -259,100 +312,121 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
     <?php endif; ?>
 </div>
 
-<!-- Κατάταξη -->
-<div class="card">
-    <h3 class="card__title">Κατάταξη 1ης φάσης</h3>
-    <?php if (!$standings): ?>
-        <p class="muted">—</p>
-    <?php else: ?>
-    <div class="table-responsive">
-    <table class="table">
-        <thead><tr>
-            <th>#</th><th>Ομάδα</th>
-            <th class="tc" title="Αγώνες">Αγ.</th>
-            <th class="tc" title="Νίκες">Ν</th>
-            <th class="tc" title="Ισοπαλίες">Ι</th>
-            <th class="tc" title="Ήττες">Η</th>
-            <th class="tc" title="Βαθμοί">Βαθ.</th>
-            <th class="tc" title="Buchholz">Buch.</th>
-            <th class="tc" title="Fine Buchholz">F.Buch.</th>
-            <th class="tc" title="Διαφορά πόντων">Διαφ.</th>
-            <th class="tc" title="Υπέρ:Κατά">Πόντοι</th>
-        </tr></thead>
-        <tbody>
-        <?php foreach ($standings as $s): ?>
-            <tr<?= !empty($s['withdrawn']) ? ' class="muted"' : '' ?>>
-                <td><?= (int)$s['rank'] ?></td>
-                <td><strong><?= h($s['label']) ?></strong><?= !empty($s['withdrawn']) ? ' <span class="badge badge--off">αποχ.</span>' : '' ?></td>
-                <td class="tc"><?= (int)$s['played'] ?></td>
-                <td class="tc"><?= (int)$s['wins'] ?></td>
-                <td class="tc"><?= (int)$s['draws'] ?></td>
-                <td class="tc"><?= (int)$s['losses'] ?></td>
-                <td class="tc"><strong><?= (int)$s['points'] ?></strong></td>
-                <td class="tc"><?= (int)$s['buchholz'] ?></td>
-                <td class="tc"><?= (int)$s['fine_buchholz'] ?></td>
-                <td class="tc"><?= ($s['diff'] > 0 ? '+' : '') . (int)$s['diff'] ?></td>
-                <td class="tc"><?= (int)$s['pf'] ?>:<?= (int)$s['pa'] ?></td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-    </div>
-    <p class="field__hint mt-8">Ισοβαθμία: Βαθμοί → Buchholz → Fine Buchholz → Διαφορά πόντων.</p>
-    <?php endif; ?>
-</div>
+<?php if ($hasRounds): ?>
+<div class="grid grid--2 grid--stretch">
 
-<!-- Ζευγάρια ανά γύρο (νεότερος πρώτος) -->
-<?php foreach (array_reverse($rounds) as $r): $rn = (int)$r['round_no']; $matches = tour_matches($pdo, $id, $rn);
-    $phase = $r['phase'] ?? 'swiss';
-    $stage = (string)($r['stage'] ?? '');
-    $title = $phase === 'swiss' ? "Γύρος $rn" : (($phase === 'friendship' ? 'Κύπελλο Φιλίας' : 'Knockout') . ($stage !== '' ? ' — ' . $stage : ''));
-?>
-<div class="card">
-    <div class="main__header" style="margin-bottom:12px;">
-        <h3 class="card__title" style="margin:0;">
-            <?= h($title) ?>
-            <span class="badge <?= $r['status']==='completed'?'badge--on':'' ?>" style="margin-left:.5rem;">
-                <?= $r['status']==='completed' ? 'Ολοκληρώθηκε' : 'Σε εξέλιξη' ?>
-            </span>
-        </h3>
-        <div class="d-flex gap-2">
-            <a class="btn btn--ghost btn--sm" href="<?= h($sheetsUrl($rn)) ?>" target="_blank">🖨 Φύλλα αγώνα</a>
-            <a class="btn btn--sm" href="<?= h(url('admin/tournament_secretariat.php?id=' . $id . '#round-' . $rn)) ?>">📝 Σκορ</a>
+    <!-- Κατάταξη 1ης φάσης (compact) -->
+    <div class="card">
+        <h3 class="card__title">Κατάταξη 1ης φάσης</h3>
+        <?php if (!$standings): ?>
+            <p class="muted">—</p>
+        <?php else: ?>
+        <div class="table-responsive">
+        <table class="table table--compact table--sm">
+            <thead><tr>
+                <th>#</th><th>Ομάδα</th>
+                <th class="tc" title="Νίκες">Ν</th>
+                <th class="tc" title="Ήττες">Η</th>
+                <th class="tc" title="Βαθμοί">Β</th>
+                <th class="tc" title="Buchholz">Bch</th>
+                <th class="tc" title="Fine Buchholz">FB</th>
+                <th class="tc" title="Διαφορά πόντων">Δ</th>
+            </tr></thead>
+            <tbody>
+            <?php foreach ($standings as $s):
+                $short = $labelsShort[(int)$s['id']] ?? tour_team_label_short((string)$s['label']); ?>
+                <tr<?= !empty($s['withdrawn']) ? ' class="muted"' : '' ?>>
+                    <td><?= (int)$s['rank'] ?></td>
+                    <td class="wrap"><?= h($short) ?><?= !empty($s['withdrawn']) ? ' <span class="badge badge--off">αποχ.</span>' : '' ?></td>
+                    <td class="tc"><?= (int)$s['wins'] ?></td>
+                    <td class="tc"><?= (int)$s['losses'] ?></td>
+                    <td class="tc"><strong><?= (int)$s['points'] ?></strong></td>
+                    <td class="tc"><?= (int)$s['buchholz'] ?></td>
+                    <td class="tc"><?= (int)$s['fine_buchholz'] ?></td>
+                    <td class="tc"><?= ($s['diff'] > 0 ? '+' : '') . (int)$s['diff'] ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
         </div>
+        <p class="field__hint mt-8">Ισοβαθμία: Βαθμοί → Buchholz → Fine Buchholz → Διαφορά.</p>
+        <?php endif; ?>
     </div>
-    <div class="table-responsive">
-    <table class="table">
-        <thead><tr><th>Γήπεδο</th><th class="right">Γηπεδούχος</th><th class="tc">Σκορ</th><th>Φιλοξενούμενος</th></tr></thead>
-        <tbody>
-        <?php foreach ($matches as $m):
-            $homeLabel = $m['home_team_id'] !== null ? ($labels[(int)$m['home_team_id']] ?? ('#' . (int)$m['home_team_id'])) : '—';
-            $courtLbl = $m['court_no'] !== null ? (int)$m['court_no'] : (int)$m['board_no'];
-            if ((int)$m['is_bye'] === 1): ?>
-                <tr>
-                    <td>—</td>
-                    <td class="right"><strong><?= h($homeLabel) ?></strong></td>
-                    <td class="tc" colspan="2"><span class="badge badge--on">ΡΕΠΟ / πρόκριση<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></span></td>
-                </tr>
-            <?php else:
-                $awayLabel = $m['away_team_id'] !== null ? ($labels[(int)$m['away_team_id']] ?? ('#' . (int)$m['away_team_id'])) : '—';
-                $hs = $m['home_score']; $as = $m['away_score'];
-                $scoreTxt = ($m['status'] === 'played') ? ((int)$hs . ' : ' . (int)$as) : '—';
-                $stageTag = ($phase !== 'swiss' && ($m['stage'] ?? '') !== '' && ($m['stage'] ?? '') !== $stage) ? ' <span class="badge">' . h((string)$m['stage']) . '</span>' : '';
-            ?>
-                <tr>
-                    <td><strong><?= $courtLbl ?></strong></td>
-                    <td class="right"><strong><?= h($homeLabel) ?></strong><?= $stageTag ?></td>
-                    <td class="tc nowrap"><?= $scoreTxt ?></td>
-                    <td><strong><?= h($awayLabel) ?></strong></td>
-                </tr>
+
+    <!-- Τρέχων / επιλεγμένος γύρος -->
+    <?php
+        $vPhase = $viewRoundRow['phase'] ?? 'swiss';
+        $vStage = (string)($viewRoundRow['stage'] ?? '');
+        $vTitle = $vPhase === 'swiss' ? "Γύρος $viewRound" : (($vPhase === 'friendship' ? 'Κύπελλο Φιλίας' : 'Knockout') . ($vStage !== '' ? ' — ' . $vStage : ''));
+        $vCompleted = ($viewRoundRow['status'] ?? '') === 'completed';
+    ?>
+    <div class="card">
+        <div class="main__header" style="margin-bottom:12px;gap:8px;flex-wrap:wrap;">
+            <h3 class="card__title" style="margin:0;">
+                <?= h($vTitle) ?>
+                <span class="badge <?= $vCompleted ? 'badge--on' : '' ?>" style="margin-left:.4rem;"><?= $vCompleted ? 'Ολοκληρώθηκε' : 'Σε εξέλιξη' ?></span>
+            </h3>
+            <div class="d-flex gap-2 align-items-center flex-wrap">
+                <?php if (count($rounds) > 1): ?>
+                <select class="input input--sm" onchange="location.href='<?= h(url('admin/tournament_view.php?id=' . $id . '&r=')) ?>'+this.value">
+                    <?php foreach ($rounds as $r): $rn = (int)$r['round_no'];
+                        $rp = $r['phase'] ?? 'swiss'; $rs = (string)($r['stage'] ?? '');
+                        $rt = $rp === 'swiss' ? "Γύρος $rn" : (($rp === 'friendship' ? 'Φιλίας' : 'KO') . ($rs !== '' ? ' — ' . $rs : '')); ?>
+                        <option value="<?= $rn ?>" <?= $rn === $viewRound ? 'selected' : '' ?>><?= h($rt) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+                <a class="btn btn--ghost btn--sm" href="<?= h($sheetsUrl($viewRound)) ?>" target="_blank">🖨 Φύλλα αγώνα</a>
+            </div>
+        </div>
+        <form method="post" class="tv-scores">
+            <?= csrf_field() ?>
+            <input type="hidden" name="op" value="save_results">
+            <input type="hidden" name="round_no" value="<?= $viewRound ?>">
+            <div class="table-responsive">
+            <table class="table table--compact table--sm">
+                <thead><tr><th>Γηπ.</th><th class="right">Γηπεδούχος</th><th class="tc">Σκορ</th><th>Φιλοξ.</th></tr></thead>
+                <tbody>
+                <?php foreach ($viewMatches as $m):
+                    $mid = (int)$m['id'];
+                    $homeLabel = $m['home_team_id'] !== null ? ($labelsShort[(int)$m['home_team_id']] ?? ('#' . (int)$m['home_team_id'])) : '—';
+                    $courtLbl = $m['court_no'] !== null ? (int)$m['court_no'] : (int)$m['board_no'];
+                    if ((int)$m['is_bye'] === 1): ?>
+                        <tr>
+                            <td>—</td>
+                            <td class="right wrap"><strong><?= h($homeLabel) ?></strong></td>
+                            <td class="tc" colspan="2"><span class="badge badge--on">Bye<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></span></td>
+                        </tr>
+                    <?php else:
+                        $awayLabel = $m['away_team_id'] !== null ? ($labelsShort[(int)$m['away_team_id']] ?? ('#' . (int)$m['away_team_id'])) : '—';
+                        $hs = $m['home_score']; $as = $m['away_score'];
+                        $stageTag = ($vPhase !== 'swiss' && ($m['stage'] ?? '') !== '' && ($m['stage'] ?? '') !== $vStage) ? ' <span class="badge">' . h((string)$m['stage']) . '</span>' : '';
+                    ?>
+                        <tr>
+                            <td><strong><?= $courtLbl ?></strong></td>
+                            <td class="right wrap"><strong><?= h($homeLabel) ?></strong><?= $stageTag ?></td>
+                            <td class="tc nowrap">
+                                <input class="input input--score" type="number" min="0" max="13"
+                                       name="home[<?= $mid ?>]" value="<?= $hs === null ? '' : (int)$hs ?>" <?= $isFinished ? 'disabled' : '' ?>>
+                                :
+                                <input class="input input--score" type="number" min="0" max="13"
+                                       name="away[<?= $mid ?>]" value="<?= $as === null ? '' : (int)$as ?>" <?= $isFinished ? 'disabled' : '' ?>>
+                            </td>
+                            <td class="wrap"><strong><?= h($awayLabel) ?></strong></td>
+                        </tr>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+            <?php if (!$isFinished): ?>
+                <button class="btn btn--sm" type="submit">💾 Αποθήκευση σκορ</button>
             <?php endif; ?>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+        </form>
     </div>
+
 </div>
-<?php endforeach; ?>
+<?php endif; ?>
 
 <?php if ($printNow > 0): ?>
 <script>window.open(<?= json_encode($sheetsUrl($printNow)) ?>, '_blank');</script>

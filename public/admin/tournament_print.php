@@ -71,7 +71,7 @@ $game      = db_one($pdo, "SELECT * FROM `{$T['games']}` WHERE gamecode=?", [$to
         $homeLabel = $m['home_team_id'] !== null ? ($labels[(int)$m['home_team_id']] ?? ('#' . (int)$m['home_team_id'])) : '—';
         $courtLbl = $m['court_no'] !== null ? (int)$m['court_no'] : (int)$m['board_no']; ?>
         <?php if ((int)$m['is_bye'] === 1): ?>
-            <tr><td>—</td><td class="right"><?= h($homeLabel) ?></td><td class="tc" colspan="2">ΡΕΠΟ / πρόκριση<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></td></tr>
+            <tr><td>—</td><td class="right"><?= h($homeLabel) ?></td><td class="tc" colspan="2">Bye<?= $m['home_score'] !== null ? ' (' . (int)$m['home_score'] . ':' . (int)$m['away_score'] . ')' : '' ?></td></tr>
         <?php else:
             $awayLabel = $m['away_team_id'] !== null ? ($labels[(int)$m['away_team_id']] ?? ('#' . (int)$m['away_team_id'])) : '—';
             $sc = $m['status'] === 'played' ? ((int)$m['home_score'] . ':' . (int)$m['away_score']) : '__ : __'; ?>

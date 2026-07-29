@@ -145,7 +145,7 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
           $home = $m['home_team_id']!==null ? ($labels[(int)$m['home_team_id']] ?? '—') : '—';
           $courtCell = !empty($m['court_no']) ? '<span class="badge text-bg-light border">Γ.'.(int)$m['court_no'].'</span>' : '';
           if ((int)$m['is_bye']===1): ?>
-            <tr><td class="text-center"><?= $courtCell ?></td><td class="text-end w-50"><?= h($home) ?></td><td class="text-center"><span class="badge text-bg-info">ΡΕΠΟ</span></td><td class="w-50">—</td></tr>
+            <tr><td class="text-center"><?= $courtCell ?></td><td class="text-end w-50"><?= h($home) ?></td><td class="text-center"><span class="badge text-bg-info">Bye</span></td><td class="w-50">—</td></tr>
           <?php else:
             $away = $m['away_team_id']!==null ? ($labels[(int)$m['away_team_id']] ?? '—') : '—';
             $played = $m['status']==='played';

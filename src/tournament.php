@@ -690,6 +690,9 @@ function tour_save_results(PDO $pdo, int $id, int $roundNo, array $results): voi
         $r = $results[$mid] ?? null;
         $home = ($r['home'] ?? '') === '' ? null : (int)$r['home'];
         $away = ($r['away'] ?? '') === '' ? null : (int)$r['away'];
+        if (($home !== null && ($home < 0 || $home > 13)) || ($away !== null && ($away < 0 || $away > 13))) {
+            throw new RuntimeException('Το σκορ πρέπει να είναι από 0 έως 13.');
+        }
         $status = ($home !== null && $away !== null) ? 'played' : 'pending';
         $upd->execute([$home, $away, $status, $mid, $id, $roundNo]);
     }
@@ -723,4 +726,143 @@ function tour_team_labels(PDO $pdo, int $id): array
         $map[(int)$t['id']] = (string)$t['label'];
     }
     return $map;
+}
+
+/**
+ * Σύντομη ετικέτα ομάδας — μόνο τα ονόματα αθλητών, χωρίς τον σύλλογο.
+ * Οι πλήρεις ετικέτες έχουν τη μορφή «ονόματα — σύλλογος».
+ */
+function tour_team_label_short(string $label): string
+{
+    // Ο διαχωριστής « — » ξεκινά με κενό (μονό byte), οπότε ο διαχωρισμός
+    // βάσει byte (strpos/substr) κόβει σε έγκυρο σημείο ακόμη κι αν λείπει
+    // η mbstring.
+    $pos = strpos($label, ' — ');
+    return $pos !== false ? substr($label, 0, $pos) : $label;
+}
+
+/** Χάρτης team_id => σύντομη ετικέτα (χωρίς σύλλογο). */
+function tour_team_labels_short(PDO $pdo, int $id): array
+{
+    $map = [];
+    foreach (tour_team_labels($pdo, $id) as $tid => $label) {
+        $map[$tid] = tour_team_label_short($label);
+    }
+    return $map;
+}
+
+/**
+ * Σειρά τελικής κατάταξης μιας knockout φάσης (καλύτερος πρώτος).
+ * Επιστρέφει λίστα team_id με βάση την πρόκριση/αποκλεισμό.
+ * @param array<int,int> $swissIndex  team_id => θέση στην κατάταξη 1ης φάσης
+ * @return array<int,int>
+ */
+function tour_phase_placement(PDO $pdo, int $id, string $phase, array $swissIndex): array
+{
+    $rounds = tour_rounds_phase($pdo, $id, $phase);
+    if ($rounds === []) {
+        return [];
+    }
+    $roundNos = array_map(static fn (array $r): int => (int)$r['round_no'], $rounds);
+
+    $order  = [];
+    $placed = [];
+
+    // Εντοπισμός του γύρου των τελικών (περιέχει στάδιο «Τελικός»).
+    $finalsRoundNo = null;
+    foreach ($roundNos as $rn) {
+        foreach (tour_matches($pdo, $id, $rn) as $m) {
+            if (($m['stage'] ?? '') === 'Τελικός') {
+                $finalsRoundNo = $rn;
+                break 2;
+            }
+        }
+    }
+
+    if ($finalsRoundNo !== null) {
+        $fm = tour_matches($pdo, $id, $finalsRoundNo);
+        foreach (['Τελικός', 'Μικρός Τελικός'] as $st) {
+            foreach ($fm as $m) {
+                if (($m['stage'] ?? '') !== $st) {
+                    continue;
+                }
+                foreach ([tour_match_winner($m), tour_match_loser($m)] as $tid) {
+                    if ($tid !== null && empty($placed[$tid])) {
+                        $order[] = $tid;
+                        $placed[$tid] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // Υπόλοιποι γύροι, από τον νεότερο προς τον παλαιότερο: ηττημένοι ανά επίπεδο.
+    rsort($roundNos);
+    foreach ($roundNos as $rn) {
+        if ($rn === $finalsRoundNo) {
+            continue;
+        }
+        $losers = [];
+        foreach (tour_matches($pdo, $id, $rn) as $m) {
+            $l = tour_match_loser($m);
+            if ($l !== null && empty($placed[$l])) {
+                $losers[] = $l;
+            }
+        }
+        usort($losers, static fn (int $a, int $b): int =>
+            ($swissIndex[$a] ?? PHP_INT_MAX) <=> ($swissIndex[$b] ?? PHP_INT_MAX));
+        foreach ($losers as $l) {
+            $order[] = $l;
+            $placed[$l] = true;
+        }
+    }
+
+    return $order;
+}
+
+/**
+ * Τελική κατάταξη ομάδων: πρώτα η έκβαση των knockout (κύριο ταμπλό,
+ * μετά Κύπελλο Φιλίας), έπειτα οι υπόλοιπες με σειρά κατάταξης 1ης φάσης.
+ * Κάθε γραμμή είναι εγγραφή κατάταξης 1ης φάσης με επιπλέον `final_rank`.
+ */
+function tour_final_standings(PDO $pdo, int $id): array
+{
+    $swiss   = tour_standings($pdo, $id);
+    $byId    = [];
+    $swissIx = [];
+    foreach ($swiss as $i => $s) {
+        $tid = (int)$s['id'];
+        $byId[$tid]    = $s;
+        $swissIx[$tid] = $i;
+    }
+
+    $order = [];
+    $seen  = [];
+    foreach (['ko', 'friendship'] as $phase) {
+        foreach (tour_phase_placement($pdo, $id, $phase, $swissIx) as $tid) {
+            if (empty($seen[$tid])) {
+                $order[] = $tid;
+                $seen[$tid] = true;
+            }
+        }
+    }
+    foreach ($swiss as $s) {
+        $tid = (int)$s['id'];
+        if (empty($seen[$tid])) {
+            $order[] = $tid;
+            $seen[$tid] = true;
+        }
+    }
+
+    $result = [];
+    $rank = 1;
+    foreach ($order as $tid) {
+        if (!isset($byId[$tid])) {
+            continue;
+        }
+        $row = $byId[$tid];
+        $row['final_rank'] = $rank++;
+        $result[] = $row;
+    }
+    return $result;
 }

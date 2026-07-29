@@ -347,6 +347,19 @@ h1, h2, h3, h4 { letter-spacing: -.015em; }
 .table .actions .btn { margin-left: 6px; }
 .table-responsive { overflow-x: auto; border-radius: var(--radius-sm); }
 
+/* Compact / small table variants (χρησιμοποιούνται στα δίπλα-δίπλα cards) */
+.table--sm { font-size: 12.5px; }
+.table--compact th, .table--compact td { padding: 6px 8px; }
+.table td.wrap, .table th.wrap { white-space: normal; word-break: break-word; line-height: 1.25; min-width: 120px; }
+
+/* Grids: ισοϋψή cards δίπλα-δίπλα */
+.grid--stretch { align-items: stretch; }
+.grid--stretch > .card { margin: 0; height: 100%; }
+
+/* Μικρά inputs σκορ */
+.input--sm { padding: 6px 8px; font-size: 13px; height: auto; }
+.input--score { width: 48px; display: inline-block; text-align: center; padding: 6px 4px; }
+
 /* Badges */
 .badge {
   display: inline-flex; align-items: center;

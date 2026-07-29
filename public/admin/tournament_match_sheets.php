@@ -91,7 +91,7 @@ $tourTitle = $tour['name'] . ($catLabel !== '' ? ' — ' . $catLabel : '');
       <div class="sheet__court">Γήπεδο<b><?= $isBye ? '—' : $courtLbl ?></b></div>
     </div>
     <?php if ($isBye): ?>
-      <div class="bye">ΡΕΠΟ — Πρόκριση άνευ αγώνα</div>
+      <div class="bye">Bye — Πρόκριση άνευ αγώνα</div>
     <?php else: ?>
       <div class="teams">
         <div class="team"><span class="team__role">Γηπεδούχος</span><span class="team__name"><?= h($homeLabel) ?></span></div>
