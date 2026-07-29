@@ -550,6 +550,13 @@ function tour_generate_ko(PDO $pdo, int $id, string $phase): int
                 throw new RuntimeException('Ολοκληρώστε όλους τους γύρους της 1ης φάσης πριν την knockout.');
             }
         }
+        $planned = (int)($tour['rounds_planned'] ?? 5);
+        if ($planned < 1) {
+            $planned = 5;
+        }
+        if (count($swiss) < $planned) {
+            throw new RuntimeException("Ολοκληρώστε και τους $planned γύρους του Swiss πριν την knockout.");
+        }
 
         $ranked = tour_ranked_ids($pdo, $id);
         if ($phase === 'ko') {

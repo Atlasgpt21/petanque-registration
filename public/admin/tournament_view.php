@@ -83,8 +83,13 @@ $activeCount = 0;
 foreach ($teams as $t) { if ((int)$t['withdrawn'] === 0) { $activeCount++; } }
 
 // Κατάσταση φάσεων.
-$swissComplete = $swissRounds !== [];
-foreach ($swissRounds as $r) { if ($r['status'] !== 'completed') { $swissComplete = false; } }
+$roundsPlanned = (int)($tour['rounds_planned'] ?? 5);
+if ($roundsPlanned < 1) { $roundsPlanned = 5; }
+$swissCompletedCount = 0;
+foreach ($swissRounds as $r) { if ($r['status'] === 'completed') { $swissCompletedCount++; } }
+// Η knockout ενεργοποιείται μόνο όταν ολοκληρωθούν ΟΛΟΙ οι προγραμματισμένοι
+// γύροι του Swiss (π.χ. και οι 5).
+$swissComplete = $swissRounds !== [] && $swissCompletedCount >= $roundsPlanned;
 $lastSwissCompleted = true;
 $lastSwissNo = 0;
 foreach ($swissRounds as $r) { $lastSwissNo = max($lastSwissNo, (int)$r['round_no']); }
@@ -270,7 +275,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
     <hr>
     <h4 style="font-size:14px;">2η φάση — Knockout</h4>
     <?php if (!$swissComplete): ?>
-        <p class="field__hint">Ολοκληρώστε πρώτα όλους τους γύρους της 1ης φάσης για να ξεκινήσει η knockout.</p>
+        <p class="field__hint">Τα κουμπιά knockout ενεργοποιούνται όταν ολοκληρωθούν και οι <?= $roundsPlanned ?> γύροι του Swiss (τώρα: <?= $swissCompletedCount ?>/<?= $roundsPlanned ?>).</p>
     <?php endif; ?>
     <div class="d-flex flex-wrap gap-2">
     <?php if ($koSize >= 2): ?>
