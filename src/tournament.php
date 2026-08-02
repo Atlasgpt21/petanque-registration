@@ -872,22 +872,30 @@ function tour_final_standings(PDO $pdo, int $id): array
 
     $order = [];
     $seen  = [];
+    $group = [];       // team_id => 'ko' | 'friendship'
+    $phaseRank = [];   // team_id => θέση μέσα στη φάση (1-based)
     foreach (['ko', 'friendship'] as $phase) {
+        $pos = 0;
         foreach (tour_phase_placement($pdo, $id, $phase, $swissIx) as $tid) {
             if (empty($seen[$tid])) {
                 $order[] = $tid;
                 $seen[$tid] = true;
+                $group[$tid] = $phase;
+                $phaseRank[$tid] = ++$pos;
             }
         }
     }
+    // Υπόλοιπες ομάδες (εκτός knockout/Φιλίας) = εκτός αγώνων.
     foreach ($swiss as $s) {
         $tid = (int)$s['id'];
         if (empty($seen[$tid])) {
             $order[] = $tid;
             $seen[$tid] = true;
+            $group[$tid] = 'out';
         }
     }
 
+    $medals = [1 => '🥇', 2 => '🥈', 3 => '🥉'];
     $result = [];
     $rank = 1;
     foreach ($order as $tid) {
@@ -896,6 +904,12 @@ function tour_final_standings(PDO $pdo, int $id): array
         }
         $row = $byId[$tid];
         $row['final_rank'] = $rank++;
+        $g = $group[$tid] ?? 'out';
+        $row['group'] = $g;
+        $pr = $phaseRank[$tid] ?? 0;
+        $row['phase_rank'] = $pr;
+        // Μετάλλια στις 3 πρώτες θέσεις κάθε knockout φάσης (κύριο & Φιλίας).
+        $row['medal'] = ($g === 'ko' || $g === 'friendship') && isset($medals[$pr]) ? $medals[$pr] : '';
         $result[] = $row;
     }
     return $result;

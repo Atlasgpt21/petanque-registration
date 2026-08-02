@@ -167,28 +167,39 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
 <!-- Τελική κατάταξη -->
 <div class="card">
     <h3 class="card__title">🏁 Τελική Κατάταξη</h3>
+    <div class="standings-legend">
+        <span class="std-tag std-tag--ko">Κυρίως ταμπλό</span>
+        <span class="std-tag std-tag--fr">Κύπελλο Φιλίας</span>
+        <span class="std-tag std-tag--out">Εκτός αγώνων</span>
+    </div>
     <div class="table-responsive">
     <table class="table table--compact">
         <thead><tr>
             <th>#</th><th>Ομάδα</th>
+            <th class="tc" title="Φάση">Φάση</th>
             <th class="tc" title="Νίκες 1ης φάσης">Ν</th>
             <th class="tc" title="Βαθμοί 1ης φάσης">Βαθ.</th>
+            <th class="tc" title="Πόντοι Υπέρ:Κατά">Υ:Κ</th>
         </tr></thead>
         <tbody>
         <?php foreach ($finalStandings as $s): $fr = (int)$s['final_rank'];
-            $medal = $fr === 1 ? '🥇' : ($fr === 2 ? '🥈' : ($fr === 3 ? '🥉' : ''));
+            $grp = $s['group'] ?? 'out';
+            $medal = (string)($s['medal'] ?? '');
+            $grpLabel = $grp === 'ko' ? 'Κυρίως' : ($grp === 'friendship' ? 'Φιλίας' : '—');
             $short = $labelsShort[(int)$s['id']] ?? tour_team_label_short((string)$s['label']); ?>
-            <tr<?= !empty($s['withdrawn']) ? ' class="muted"' : '' ?>>
+            <tr class="std-row std-row--<?= h($grp) ?><?= !empty($s['withdrawn']) ? ' muted' : '' ?>">
                 <td><strong><?= $fr ?></strong> <?= $medal ?></td>
                 <td class="wrap"><?= h($short) ?><?= !empty($s['withdrawn']) ? ' <span class="badge badge--off">αποχ.</span>' : '' ?></td>
+                <td class="tc"><span class="std-tag std-tag--<?= h($grp === 'ko' ? 'ko' : ($grp === 'friendship' ? 'fr' : 'out')) ?>"><?= h($grpLabel) ?></span></td>
                 <td class="tc"><?= (int)$s['wins'] ?></td>
                 <td class="tc"><?= (int)$s['points'] ?></td>
+                <td class="tc nowrap"><?= (int)$s['pf'] ?>:<?= (int)$s['pa'] ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
     </div>
-    <p class="field__hint mt-8">Θέσεις 1–4 από τους τελικούς· οι υπόλοιποι με σειρά αποκλεισμού και κατάταξης 1ης φάσης.</p>
+    <p class="field__hint mt-8">Χρώμα ανά φάση· μετάλλια στις 3 πρώτες θέσεις κυρίως ταμπλό & Κυπέλλου Φιλίας. Οι υπόλοιποι με σειρά αποκλεισμού/κατάταξης 1ης φάσης.</p>
 </div>
 <?php endif; ?>
 
@@ -336,6 +347,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
                 <th class="tc" title="Νίκες">Ν</th>
                 <th class="tc" title="Ήττες">Η</th>
                 <th class="tc" title="Βαθμοί">Β</th>
+                <th class="tc" title="Πόντοι Υπέρ:Κατά">Υ:Κ</th>
                 <th class="tc" title="Buchholz">Bch</th>
                 <th class="tc" title="Fine Buchholz">FB</th>
                 <th class="tc" title="Διαφορά πόντων">Δ</th>
@@ -349,6 +361,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
                     <td class="tc"><?= (int)$s['wins'] ?></td>
                     <td class="tc"><?= (int)$s['losses'] ?></td>
                     <td class="tc"><strong><?= (int)$s['points'] ?></strong></td>
+                    <td class="tc nowrap"><?= (int)$s['pf'] ?>:<?= (int)$s['pa'] ?></td>
                     <td class="tc"><?= (int)$s['buchholz'] ?></td>
                     <td class="tc"><?= (int)$s['fine_buchholz'] ?></td>
                     <td class="tc"><?= ($s['diff'] > 0 ? '+' : '') . (int)$s['diff'] ?></td>

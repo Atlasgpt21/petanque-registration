@@ -21,9 +21,16 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
 <link rel="stylesheet" href="<?= h($bsHref) ?>">
 <meta http-equiv="refresh" content="60">
 <style>
-  body { background:#f5f3ef; }
-  .hpf-head { background:#7a2d12; color:#fff; }
+  body { background:#f4f6fb; }
+  .hpf-head { background:linear-gradient(120deg,#10294a,#1857a8); color:#fff; }
   .badge-M{background:#e8efff;color:#2142a8;} .badge-F{background:#ffe8f2;color:#a01f5c;} .badge-MIX{background:#fff4d9;color:#8a5a00;}
+  .std-row-ko  > td { background:#e8f1fc !important; }
+  .std-row-fr  > td { background:#fff4e0 !important; }
+  .std-row-out > td { background:#f2f3f5 !important; color:#6b7280; }
+  .std-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent;}
+  .std-tag-ko{background:#e8f1fc;color:#1857a8;border-color:#c3ddf6;}
+  .std-tag-fr{background:#fff4e0;color:#92600a;border-color:#ffe3a0;}
+  .std-tag-out{background:#f2f3f5;color:#6b7280;border-color:#e2e4e8;}
 </style>
 </head>
 <body>
@@ -60,6 +67,8 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
     $rounds    = tour_rounds($pdo, $tid);
     $labels    = tour_team_labels($pdo, $tid);
     $game      = db_one($pdo, "SELECT name FROM `{$T['games']}` WHERE gamecode=?", [$tour['gamecode']]);
+    $isFinished = ($tour['status'] ?? '') === 'finished';
+    $finalStandings = ($isFinished && $rounds) ? tour_final_standings($pdo, $tid) : [];
 ?>
   <a class="btn btn-sm btn-link px-0 mb-2" href="<?= h(url('results.php')) ?>">← Όλες οι διοργανώσεις</a>
   <h2 class="h4"><?= h($tour['name']) ?> <?php if ($cl!==''): ?><span class="badge badge-<?= h($cat) ?>"><?= h($cl) ?></span><?php endif; ?></h2>
@@ -101,13 +110,50 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
     </div>
   </div>
 
+  <?php if ($isFinished && $finalStandings): ?>
   <div class="card shadow-sm mb-4">
-    <div class="card-header fw-semibold">Κατάταξη</div>
+    <div class="card-header fw-semibold d-flex justify-content-between flex-wrap gap-2">
+      <span>🏁 Τελική Κατάταξη</span>
+      <span class="small">
+        <span class="std-tag std-tag-ko">Κυρίως ταμπλό</span>
+        <span class="std-tag std-tag-fr">Κύπελλο Φιλίας</span>
+        <span class="std-tag std-tag-out">Εκτός αγώνων</span>
+      </span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm m-0 align-middle">
+        <thead><tr>
+          <th>#</th><th>Ομάδα</th><th class="text-center">Φάση</th>
+          <th class="text-center">Ν</th><th class="text-center">Βαθ.</th><th class="text-center">Υπέρ:Κατά</th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($finalStandings as $s):
+          $grp = $s['group'] ?? 'out';
+          $grpLabel = $grp==='ko' ? 'Κυρίως' : ($grp==='friendship' ? 'Φιλίας' : '—');
+          $tag = $grp==='ko' ? 'ko' : ($grp==='friendship' ? 'fr' : 'out');
+          $short = tour_team_label_short((string)$s['label']); ?>
+          <tr class="std-row-<?= h($tag) ?>">
+            <td class="fw-semibold"><?= (int)$s['final_rank'] ?> <?= h((string)($s['medal'] ?? '')) ?></td>
+            <td><?= h($short) ?></td>
+            <td class="text-center"><span class="std-tag std-tag-<?= h($tag) ?>"><?= h($grpLabel) ?></span></td>
+            <td class="text-center"><?= (int)$s['wins'] ?></td>
+            <td class="text-center fw-semibold"><?= (int)$s['points'] ?></td>
+            <td class="text-center text-nowrap"><?= (int)$s['pf'] ?>:<?= (int)$s['pa'] ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold"><?= $isFinished ? 'Κατάταξη 1ης φάσης' : 'Κατάταξη' ?></div>
     <div class="table-responsive">
       <table class="table table-sm table-striped m-0 align-middle">
         <thead><tr>
           <th>#</th><th>Ομάδα</th><th class="text-center">Αγ.</th><th class="text-center">Ν</th><th class="text-center">Η</th>
-          <th class="text-center">Βαθ.</th><th class="text-center">Buch.</th><th class="text-center">F.B.</th><th class="text-center">Διαφ.</th>
+          <th class="text-center">Βαθ.</th><th class="text-center">Υπέρ:Κατά</th><th class="text-center">Buch.</th><th class="text-center">F.B.</th><th class="text-center">Διαφ.</th>
         </tr></thead>
         <tbody>
         <?php foreach ($standings as $s): ?>
@@ -118,12 +164,13 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
             <td class="text-center"><?= (int)$s['wins'] ?></td>
             <td class="text-center"><?= (int)$s['losses'] ?></td>
             <td class="text-center fw-semibold"><?= (int)$s['points'] ?></td>
+            <td class="text-center text-nowrap"><?= (int)$s['pf'] ?>:<?= (int)$s['pa'] ?></td>
             <td class="text-center"><?= (int)$s['buchholz'] ?></td>
             <td class="text-center"><?= (int)$s['fine_buchholz'] ?></td>
             <td class="text-center"><?= ($s['diff']>0?'+':'') . (int)$s['diff'] ?></td>
           </tr>
         <?php endforeach; ?>
-        <?php if (!$standings): ?><tr><td colspan="9" class="text-muted">—</td></tr><?php endif; ?>
+        <?php if (!$standings): ?><tr><td colspan="10" class="text-muted">—</td></tr><?php endif; ?>
         </tbody>
       </table>
     </div>

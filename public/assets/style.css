@@ -363,6 +363,19 @@ h1, h2, h3, h4 { letter-spacing: -.015em; }
 .input--sm { padding: 6px 8px; font-size: 13px; height: auto; }
 .input--score { width: 48px; display: inline-block; text-align: center; padding: 6px 4px; }
 
+/* Τελική κατάταξη: χρώμα ανά φάση + υπόμνημα */
+.std-row--ko  > td { background: #e8f1fc; }
+.std-row--ko:hover > td { background: #daeafa; }
+.std-row--fr  > td { background: #fff4e0; }
+.std-row--fr:hover > td { background: #ffedcc; }
+.std-row--out > td { background: #f2f3f5; color: var(--ink-mute); }
+.std-row--out:hover > td { background: #eceef1; }
+.standings-legend { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 14px; }
+.std-tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid transparent; }
+.std-tag--ko  { background: #e8f1fc; color: #1857a8; border-color: #c3ddf6; }
+.std-tag--fr  { background: #fff4e0; color: #92600a; border-color: #ffe3a0; }
+.std-tag--out { background: #f2f3f5; color: #6b7280; border-color: #e2e4e8; }
+
 /* Badges */
 .badge {
   display: inline-flex; align-items: center;
