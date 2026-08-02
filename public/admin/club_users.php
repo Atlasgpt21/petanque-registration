@@ -129,7 +129,7 @@ render_header('Λογαριασμοί Συλλόγων', 'admin', 'club_users');
                 <td><?= $u['last_login'] ? h(date('d/m/Y H:i', strtotime($u['last_login']))) : '<span class="muted">—</span>' ?></td>
                 <td class="actions">
                     <a class="btn btn--sm btn--ghost" href="<?= h(url('admin/club_users.php?action=edit&id=' . $u['id'])) ?>">Επεξεργασία</a>
-                    <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή λογαριασμού;');">
+                    <form method="post" style="display:inline" data-confirm="Διαγραφή λογαριασμού;">
                         <?= csrf_field() ?><input type="hidden" name="op" value="delete"><input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                         <button class="btn btn--sm btn--danger" type="submit">Διαγραφή</button>
                     </form>

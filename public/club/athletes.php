@@ -201,7 +201,7 @@ render_header('Αθλητές — ' . $club['clubname'], 'club', 'athletes');
                     <td class="actions">
                         <?php if (!$readonly): ?>
                             <a class="btn btn--sm btn--ghost" href="<?= h(url('club/athletes.php?action=edit&id=' . $p['playerid'])) ?>">Επεξεργασία</a>
-                            <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή αθλητή;');">
+                            <form method="post" style="display:inline" data-confirm="Διαγραφή αθλητή;">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="op" value="delete">
                                 <input type="hidden" name="playerid" value="<?= (int)$p['playerid'] ?>">

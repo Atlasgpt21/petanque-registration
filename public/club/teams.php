@@ -477,7 +477,7 @@ render_header('Δηλώσεις — ' . $game['gamecode'], 'club', 'teams');
                         <td class="actions">
                             <?php if ($open): ?>
                                 <a class="btn btn--sm btn--ghost" href="<?= h(url('club/teams.php?g=' . urlencode($game['gamecode']) . '&action=edit&id=' . $t['teamid'])) ?>">Επεξεργασία</a>
-                                <form method="post" style="display:inline" onsubmit="return confirm('Διαγραφή ομάδας;');">
+                                <form method="post" style="display:inline" data-confirm="Διαγραφή ομάδας;">
                                     <?= csrf_field() ?>
                                     <input type="hidden" name="op" value="delete_team">
                                     <input type="hidden" name="teamid" value="<?= (int)$t['teamid'] ?>">
