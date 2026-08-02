@@ -147,8 +147,27 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
   </div>
   <?php endif; ?>
 
+  <?php
+    $koCut = ((int)($tour['ko_size'] ?? 0)) >= 2 ? (int)$tour['ko_size'] : 0;
+    $frCut = ($koCut > 0 && (int)($tour['friendship_cup'] ?? 0) === 1) ? $koCut * 2 : $koCut;
+    $projTag = static function (int $rank) use ($koCut, $frCut): string {
+        if ($koCut <= 0) { return ''; }
+        if ($rank <= $koCut) { return 'ko'; }
+        if ($rank <= $frCut) { return 'fr'; }
+        return 'out';
+    };
+  ?>
   <div class="card shadow-sm mb-4">
-    <div class="card-header fw-semibold"><?= $isFinished ? 'Κατάταξη 1ης φάσης' : 'Κατάταξη' ?></div>
+    <div class="card-header fw-semibold d-flex justify-content-between flex-wrap gap-2">
+      <span><?= $isFinished ? 'Κατάταξη 1ης φάσης' : 'Κατάταξη' ?></span>
+      <?php if ($koCut > 0 && !$isFinished): ?>
+      <span class="small">
+        <span class="std-tag std-tag-ko">Κυρίως 1–<?= $koCut ?></span>
+        <?php if ($frCut > $koCut): ?><span class="std-tag std-tag-fr">Φιλίας <?= $koCut+1 ?>–<?= $frCut ?></span><?php endif; ?>
+        <span class="std-tag std-tag-out">Εκτός <?= $frCut+1 ?>+</span>
+      </span>
+      <?php endif; ?>
+    </div>
     <div class="table-responsive">
       <table class="table table-sm table-striped m-0 align-middle">
         <thead><tr>
@@ -156,8 +175,8 @@ $bsHref = url('assets/vendor/bootstrap/bootstrap.min.css');
           <th class="text-center">Βαθ.</th><th class="text-center">Υπέρ:Κατά</th><th class="text-center">Buch.</th><th class="text-center">F.B.</th><th class="text-center">Διαφ.</th>
         </tr></thead>
         <tbody>
-        <?php foreach ($standings as $s): ?>
-          <tr>
+        <?php foreach ($standings as $s): $pt = $isFinished ? '' : $projTag((int)$s['rank']); ?>
+          <tr class="<?= $pt !== '' ? 'std-row-' . h($pt) : '' ?>">
             <td><?= (int)$s['rank'] ?></td>
             <td><?= h($s['label']) ?></td>
             <td class="text-center"><?= (int)$s['played'] ?></td>

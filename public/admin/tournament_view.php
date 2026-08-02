@@ -335,11 +335,29 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
 <div class="grid grid--2 grid--stretch">
 
     <!-- Κατάταξη 1ης φάσης (compact) -->
+    <?php
+        // Όρια προβλεπόμενων φάσεων βάσει TOP-8/16 & Κυπέλλου Φιλίας.
+        $koCut = $koSize >= 2 ? $koSize : 0;
+        $frCut = ($koCut > 0 && (int)($tour['friendship_cup'] ?? 0) === 1) ? $koCut * 2 : $koCut;
+        $projGroup = static function (int $rank) use ($koCut, $frCut): string {
+            if ($koCut <= 0) { return ''; }
+            if ($rank <= $koCut) { return 'ko'; }
+            if ($rank <= $frCut) { return 'fr'; }
+            return 'out';
+        };
+    ?>
     <div class="card">
         <h3 class="card__title">Κατάταξη 1ης φάσης</h3>
         <?php if (!$standings): ?>
             <p class="muted">—</p>
         <?php else: ?>
+        <?php if ($koCut > 0): ?>
+        <div class="standings-legend">
+            <span class="std-tag std-tag--ko">Κυρίως (1–<?= $koCut ?>)</span>
+            <?php if ($frCut > $koCut): ?><span class="std-tag std-tag--fr">Φιλίας (<?= $koCut + 1 ?>–<?= $frCut ?>)</span><?php endif; ?>
+            <span class="std-tag std-tag--out">Εκτός (<?= $frCut + 1 ?>+)</span>
+        </div>
+        <?php endif; ?>
         <div class="table-responsive">
         <table class="table table--compact table--sm">
             <thead><tr>
@@ -354,8 +372,9 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
             </tr></thead>
             <tbody>
             <?php foreach ($standings as $s):
-                $short = $labelsShort[(int)$s['id']] ?? tour_team_label_short((string)$s['label']); ?>
-                <tr<?= !empty($s['withdrawn']) ? ' class="muted"' : '' ?>>
+                $short = $labelsShort[(int)$s['id']] ?? tour_team_label_short((string)$s['label']);
+                $pg = !empty($s['withdrawn']) ? '' : $projGroup((int)$s['rank']); ?>
+                <tr class="<?= $pg !== '' ? 'std-row std-row--' . h($pg === 'fr' ? 'friendship' : $pg) : '' ?><?= !empty($s['withdrawn']) ? ' muted' : '' ?>">
                     <td><?= (int)$s['rank'] ?></td>
                     <td class="wrap"><?= h($short) ?><?= !empty($s['withdrawn']) ? ' <span class="badge badge--off">αποχ.</span>' : '' ?></td>
                     <td class="tc"><?= (int)$s['wins'] ?></td>
@@ -370,7 +389,7 @@ render_header('Διοργάνωση: ' . $tour['name'], 'admin', 'tournaments');
             </tbody>
         </table>
         </div>
-        <p class="field__hint mt-8">Ισοβαθμία: Βαθμοί → Buchholz → Fine Buchholz → Διαφορά.</p>
+        <p class="field__hint mt-8">Ισοβαθμία: Βαθμοί → Buchholz → Fine Buchholz → Διαφορά.<?= $koCut > 0 ? ' Τα χρώματα δείχνουν τις προβλεπόμενες θέσεις (Κυρίως / Φιλίας / Εκτός) — οριστικοποιούνται στο τέλος του Ελβετικού.' : '' ?></p>
         <?php endif; ?>
     </div>
 
